@@ -1,0 +1,55 @@
+# Ansible Specific
+*.retry
+*.vault
+*.vault.*
+inventory/hosts.ini  # Or your inventory file name
+inventory/group_vars/*
+inventory/host_vars/*
+
+# Sensitive Data
+.env
+id_rsa
+id_rsa.pub
+*.key
+*.pem
+*.pfx
+*.jks
+*.p12
+*.password
+passwords.yml
+secrets.yml
+
+# Temporary Files
+*.swp
+*.swo
+*~
+\#*\#
+.*.un~
+.*.rej
+.DS_Store
+.cache/
+__pycache__/
+
+# Log Files
+*.log
+
+# Virtual Environments (if used)
+venv/
+.venv/
+.venv/
+
+# Other
+.terraform/
+.vagrant/
+.idea/
+.vscode/
+*.bak
+*.orig
+*.dist
+*.dump
+*.sql
+*.sqlite
+*.db
+*.csv
+inventory/test.ini
+inventory/hosts.ini

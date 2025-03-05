@@ -1,0 +1,39 @@
+- name: Download Tailscale GPG Key
+  ansible.builtin.uri:
+    dest: /usr/share/keyrings/tailscale-archive-keyring.gpg
+    url: https://pkgs.tailscale.com/stable/ubuntu/jammy.noarmor.gpg 
+
+- name: Add Tailscale repository
+  ansible.builtin.uri:
+    dest: /etc/apt/sources.list.d/tailscale.list
+    url: https://pkgs.tailscale.com/stable/ubuntu/jammy.tailscale-keyring.list
+
+- name: Update package cache
+  ansible.builtin.apt:
+    update_cache: yes
+
+- name: Install Tailscale
+  ansible.builtin.apt:
+    name: tailscale
+    state: present
+
+- name: Start Tailscale service
+  service:
+    name: tailscaled
+    state: started
+    enabled: yes
+
+- name: Connect to Tailscale network using the provided auth token
+  command: tailscale up --authkey={{ tailscale_auth_key }}
+  environment:
+    TS_KEY: "{{ tailscale_auth_key }}"
+  become: true
+
+- name: Check Tailscale status
+  command: tailscale status
+  register: tailscale_status
+  changed_when: false
+
+- name: Show Tailscale status
+  debug:
+    msg: "Tailscale status: {{ tailscale_status.stdout }}"

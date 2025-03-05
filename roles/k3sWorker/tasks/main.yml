@@ -1,0 +1,46 @@
+- name: Create K3s Token on Master (if not already created)
+  shell: |
+    if [ ! -f /tmp/k3s_token ]; then
+      cat /var/lib/rancher/k3s/server/node-token > /tmp/k3s_token
+    fi
+  delegate_to: master
+  run_once: true
+
+- name: Fetch K3s Node Token
+  fetch:
+    src: /tmp/k3s_token
+    dest: /tmp/k3s_token
+    flat: yes
+  delegate_to: master
+  run_once: true
+  when: ansible_host == 'worker-node-1' or ansible_host == 'worker-node-2'
+
+- name: Read K3s Node Token
+  shell: cat /tmp/k3s_token
+  register: k3s_token
+  delegate_to: master
+  run_once: true
+
+- name: Check if K3s Token is available
+  debug:
+    msg: "K3S Token: {{ k3s_token.stdout }}"
+  when: k3s_token.stdout is not defined or k3s_token.stdout == ''
+
+- name: Join K3s Cluster (with more debugging)
+  shell: |
+    echo "Joining K3s Cluster with the following details:"
+    echo "Master Node URL: https://{{ hostvars['master']['ansible_host'] }}:6443"
+    echo "K3S Token: {{ k3s_token.stdout }}"
+    
+    curl -sfL https://get.k3s.io | K3S_URL=https://{{ hostvars['master']['ansible_host'] }}:6443 K3S_TOKEN={{ k3s_token.stdout }} sh -
+  args:
+    executable: /bin/bash
+  delegate_to: "{{ inventory_hostname }}"
+  when: ansible_host != 'master'
+  register: k3s_join_result
+
+- name: Debug K3s Join Result
+  debug:
+    var: k3s_join_result
+  when: k3s_join_result is defined
+
