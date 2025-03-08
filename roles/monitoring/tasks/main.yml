@@ -30,6 +30,7 @@
     src: /etc/rancher/k3s/k3s.yaml
     dest: /root/.kube/config
     remote_src: yes
+    force: yes
   delegate_to: master
   become: true
 
@@ -51,6 +52,11 @@
     kind: Namespace
   become: true
 
+- name: Ensure Helm is installed
+  shell: |
+    curl https://raw.githubusercontent.com/helm/helm/main/scripts/get-helm-3 | bash
+  become: true
+
 - name: Add Helm Repositories
   shell: |
     helm repo add prometheus-community https://prometheus-community.github.io/helm-charts
@@ -58,10 +64,10 @@
     helm repo update
   become: true
 
-- name: Install Prometheus
-  shell: helm install prometheus prometheus-community/kube-prometheus-stack --namespace prometheus
+- name: Install or Upgrade Prometheus
+  shell: helm upgrade --install prometheus prometheus-community/kube-prometheus-stack --namespace prometheus
   become: true
 
 - name: Install Grafana
-  shell: helm install grafana grafana/grafana --namespace grafana
+  shell: helm upgrade --install grafana grafana/grafana --namespace grafana
   become: true

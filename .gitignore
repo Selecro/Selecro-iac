@@ -53,3 +53,5 @@ venv/
 *.csv
 inventory/test.ini
 inventory/hosts.ini
+output.txt
+test-output.txt

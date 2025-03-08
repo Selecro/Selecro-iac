@@ -1,40 +1,75 @@
-- name: Apply Kubernetes Dashboard Manifests
-  shell: |
-    kubectl apply -f https://raw.githubusercontent.com/kubernetes/dashboard/v2.6.0/aio/deploy/recommended.yaml
-  args:
-    executable: /bin/bash
+- name: Deploy Kubernetes Dashboard
+  command: kubectl apply -f https://raw.githubusercontent.com/kubernetes/dashboard/v2.7.0/aio/deploy/recommended.yaml
 
-- name: Create Admin User
-  copy:
-    content: |
+- name: Create ServiceAccount for Kubernetes Dashboard
+  command: kubectl apply -f -
+  args:
+    stdin: |
       apiVersion: v1
       kind: ServiceAccount
       metadata:
         name: admin-user
         namespace: kubernetes-dashboard
-      ---
+
+- name: Bind admin-user to cluster-admin role
+  command: kubectl apply -f -
+  args:
+    stdin: |
       apiVersion: rbac.authorization.k8s.io/v1
       kind: ClusterRoleBinding
       metadata:
         name: admin-user
+      subjects:
+      - kind: ServiceAccount
+        name: admin-user
+        namespace: kubernetes-dashboard
       roleRef:
-        apiGroup: rbac.authorization.k8s.io
         kind: ClusterRole
         name: cluster-admin
-      subjects:
-        - kind: ServiceAccount
-          name: admin-user
-          namespace: kubernetes-dashboard
-    dest: /tmp/dashboard-admin.yaml
+        apiGroup: rbac.authorization.k8s.io
 
-- name: Apply Admin User
-  shell: kubectl apply -f /tmp/dashboard-admin.yaml
+- name: Wait for service account creation
+  pause:
+    seconds: 5
 
-- name: Get Dashboard Admin Token
-  shell: kubectl -n kubernetes-dashboard create token admin-user
-  register: dashboard_token
+- name: Get the admin token
+  command: kubectl -n kubernetes-dashboard create token admin-user
+  register: token_output
+
+- name: Show admin token
+  debug:
+    msg: "Admin Token: {{ token_output.stdout }}"
+
+- name: Get Local Host IPv4 Address
+  command: hostname -I
+  register: local_ips
   changed_when: false
 
-- name: Show Dashboard Token
-  debug:
-    msg: "{{ dashboard_token.stdout }}"
+- name: Extract First Two IPs and Format for --accept-hosts
+  set_fact:
+    all_ips: "{{ (local_ips.stdout.split()[:2]) | join(',') }}"
+
+- name: Create systemd service for kubectl proxy
+  copy:
+    dest: /etc/systemd/system/kubectl-proxy.service
+    content: |
+      [Unit]
+      Description=Kubernetes API Proxy
+      After=network.target
+
+      [Service]
+      ExecStart=/usr/bin/sudo /usr/local/bin/kubectl port-forward -n kubernetes-dashboard services/kubernetes-dashboard 8001:443 --address {{ all_ips }}
+      Restart=always
+      User=root
+
+      [Install]
+      WantedBy=multi-user.target
+
+- name: Reload systemd daemon to recognize the new service
+  command: systemctl daemon-reload
+
+- name: Enable kubectl proxy service to start on boot
+  command: systemctl enable kubectl-proxy
+
+- name: Start kubectl proxy service
+  command: systemctl restart kubectl-proxy
