@@ -73,3 +73,6 @@
 
 - name: Start kubectl proxy service
   command: systemctl restart kubectl-proxy
+
+- name: Display k3s.yaml as base64
+  shell: base64 /etc/rancher/k3s/k3s.yaml
