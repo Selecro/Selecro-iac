@@ -32,8 +32,8 @@
   pause:
     seconds: 5
 
-- name: Get the admin token
-  command: kubectl -n kubernetes-dashboard create token admin-user
+- name: Get the admin token with expiration (1 year)
+  command: kubectl -n kubernetes-dashboard create token admin-user --duration 8760h
   register: token_output
 
 - name: Show admin token
