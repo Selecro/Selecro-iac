@@ -42,7 +42,7 @@
     kind: Namespace
   become: true
   environment:
-    KUBECONFIG: ~/.kube/config
+      KUBECONFIG: /root/.kube/config
 
 - name: Create Grafana Namespace
   kubernetes.core.k8s:
@@ -51,6 +51,8 @@
     api_version: v1
     kind: Namespace
   become: true
+  environment:
+      KUBECONFIG: /root/.kube/config
 
 - name: Ensure Helm is installed
   shell: |
@@ -67,7 +69,11 @@
 - name: Install or Upgrade Prometheus
   shell: helm upgrade --install prometheus prometheus-community/kube-prometheus-stack --namespace prometheus
   become: true
+  environment:
+      KUBECONFIG: /root/.kube/config
 
 - name: Install Grafana
   shell: helm upgrade --install grafana grafana/grafana --namespace grafana
   become: true
+  environment:
+      KUBECONFIG: /root/.kube/config

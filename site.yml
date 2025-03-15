@@ -1,35 +1,65 @@
-- name: Install Tailscale
-  hosts: all
-  become: yes
-  roles:
-  - tailscale
+#- name: Setup K3s Cluster
+#  hosts: all
+#  become: yes
+#  roles:
+#  - common
 
-- name: Setup K3s Cluster
-  hosts: all
-  become: yes
-  roles:
-  - common
+#- name: Install Tailscale
+#  hosts: all
+#  become: yes
+#  roles:
+#  - tailscale
 
-- name: Install K3s on Master Node
-  hosts: master
-  become: yes
-  roles:
-  - k3s
+#- name: Install K3s on Master Node
+#  hosts: master
+#  become: yes
+#  roles:
+#  - k3s
 
-- name: Install K3s on Worker Nodes
-  hosts: workers
-  become: yes
-  roles:
-  - k3sWorker
+#- name: Install K3s on Worker Nodes
+#  hosts: workers
+#  become: yes
+#  roles:
+#  - k3sWorker
 
-- name: Install Monitoring Stack
-  hosts: master
-  become: yes
-  roles:
-  - monitoring
+#- name: Install Monitoring Stack
+#  hosts: master
+#  become: yes
+#  roles:
+#  - monitoring
 
-- name: Install Kubernetes Dashboard
-  hosts: master
-  become: yes
-  roles:
-  - dashboard
+#- name: Deploy Tailscale in Kubernetes
+#  hosts: master
+#  become: yes
+#  roles:
+#  - tailscale-kubernetes
+
+#- name: Install Kubernetes Dashboard
+#  hosts: master
+#  become: yes
+#  roles:
+#  - dashboard
+
+#- name: Install Database Selecro-main
+#  hosts: master
+#  become: yes
+#  roles:
+#  - database-selecro-main
+
+#- name: Install Database Selecro-dev
+#  hosts: master
+#  become: yes
+#  roles:
+#  - database-selecro-dev
+
+#- name: Install Hashicorp Vault Selecro-main
+#  hosts: master
+#  become: yes
+#  roles:
+#  - vault-selecro-main
+
+#- name: Install Hashicorp Vault Selecro-dev
+#  hosts: master
+#  become: yes
+#  roles:
+#  - vault-selecro-dev

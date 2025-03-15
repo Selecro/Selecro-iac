@@ -1,0 +1,121 @@
+- name: Ensure kubectl is installed
+  ansible.builtin.command:
+    cmd: "which kubectl"
+  register: kubectl_installed
+  ignore_errors: true
+  become: true
+
+- name: Install kubectl if not found
+  ansible.builtin.shell: |
+    curl -LO "https://dl.k8s.io/release/$(curl -L -s https://dl.k8s.io/release/stable.txt)/bin/linux/amd64/kubectl"
+    chmod +x kubectl
+    mv kubectl /usr/local/bin/
+  when: kubectl_installed.rc != 0
+  become: true
+
+- name: Create Tailscale namespace
+  kubernetes.core.k8s:
+    state: present
+    kind: Namespace
+    name: tailscale
+  become: true
+
+- name: Create ServiceAccount for Tailscale
+  kubernetes.core.k8s:
+    state: present
+    definition:
+      apiVersion: v1
+      kind: ServiceAccount
+      metadata:
+        name: tailscale
+        namespace: tailscale
+  become: true
+
+- name: Create Role for Tailscale permissions
+  kubernetes.core.k8s:
+    state: present
+    definition:
+      apiVersion: rbac.authorization.k8s.io/v1
+      kind: Role
+      metadata:
+        namespace: tailscale
+        name: tailscale-secret-reader
+      rules:
+        - apiGroups: [""]
+          resources: ["secrets"]
+          verbs: ["get", "watch", "list", "create", "update"]
+  become: true
+
+- name: Bind Role to ServiceAccount
+  kubernetes.core.k8s:
+    state: present
+    definition:
+      apiVersion: rbac.authorization.k8s.io/v1
+      kind: RoleBinding
+      metadata:
+        name: tailscale-secret-binding
+        namespace: tailscale
+      subjects:
+        - kind: ServiceAccount
+          name: tailscale
+          namespace: tailscale
+      roleRef:
+        kind: Role
+        name: tailscale-secret-reader
+        apiGroup: rbac.authorization.k8s.io
+  become: true
+
+- name: Create Secret for Tailscale authentication
+  kubernetes.core.k8s:
+    state: present
+    definition:
+      apiVersion: v1
+      kind: Secret
+      metadata:
+        name: tailscale-auth
+        namespace: tailscale
+      type: Opaque
+      data:
+        TS_AUTHKEY: "{{ tailscale_auth_key | b64encode }}"
+  become: true
+
+- name: Apply Tailscale DaemonSet
+  kubernetes.core.k8s:
+    state: present
+    definition:
+      apiVersion: apps/v1
+      kind: DaemonSet
+      metadata:
+        name: tailscale
+        namespace: tailscale
+      spec:
+        selector:
+          matchLabels:
+            app: tailscale
+        template:
+          metadata:
+            labels:
+              app: tailscale
+          spec:
+            serviceAccountName: tailscale
+            containers:
+              - name: tailscale
+                image: ghcr.io/tailscale/tailscale:latest
+                securityContext:
+                  capabilities:
+                    add:
+                      - NET_ADMIN
+                      - NET_RAW
+                env:
+                  - name: TS_AUTHKEY
+                    valueFrom:
+                      secretKeyRef:
+                        name: tailscale-auth
+                        key: TS_AUTHKEY
+                volumeMounts:
+                  - name: tailscale-state
+                    mountPath: /var/lib/tailscale
+            volumes:
+              - name: tailscale-state
+                emptyDir: {}
+  become: true
