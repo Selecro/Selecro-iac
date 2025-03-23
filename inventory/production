@@ -1,0 +1,24 @@
+[k3s_master]
+k3s_master ansible_host=192.168.0.3
+
+[k3s_workers]
+k3s-worker1 ansible_host=192.168.0.4
+k3s-worker2 ansible_host=192.168.0.5
+
+[k3s_cluster:children]
+k3s_master
+k3s_workers
+
+[db_primary]
+db1 ansible_host=192.168.0.3
+
+[db_replicas]
+db2 ansible_host=192.168.0.4
+db3 ansible_host=192.168.0.5
+
+[db_servers:children]
+db_primary
+db_replicas
+
+[load_balancers]
+lb1 ansible_host=192.168.0.3

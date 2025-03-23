@@ -1,13 +1,43 @@
-- name: Install K3s on Master
-  shell: curl -sfL https://get.k3s.io | sh -
-  args:
-    executable: /bin/bash
+---
+- name: Install K3s on master
+  when: "'k3_master' in group_names"
+  shell: |
+    curl -sfL https://get.k3s.io | sh -
+  become: yes
+  register: k3s_install_master
 
-- name: Get K3s Node Token
-  shell: cat /var/lib/rancher/k3s/server/node-token
+- name: Get K3s token from master
+  when: "'k3_master' in group_names"
+  command: cat /var/lib/rancher/k3s/server/node-token
   register: k3s_token
+  changed_when: false
 
-- name: Save K3s Node Token
-  copy:
-    content: "{{ k3s_token.stdout }}"
-    dest: /tmp/k3s_token
+- name: Install K3s on worker nodes
+  when: "'k3s_workers' in group_names"
+  shell: |
+    curl -sfL https://get.k3s.io | K3S_URL=https://{{ hostvars['k3s_master'].ansible_host }}:6443 K3S_TOKEN={{ k3s_token.stdout }} sh -
+  become: yes
+
+- name: Ensure K3s service is started and enabled on master
+  when: "'k3_master' in group_names"
+  service:
+    name: k3s
+    state: started
+    enabled: yes
+
+- name: Ensure K3s service is started and enabled on workers
+  when: "'k3s_workers' in group_names"
+  service:
+    name: k3s-agent
+    state: started
+    enabled: yes
+
+- name: Get K3s cluster status (from master)
+  when: "'k3_master' in group_names"
+  command: kubectl get nodes
+  register: k3s_cluster_status
+  changed_when: false
+
+- name: Show K3s cluster status
+  debug:
+    msg: "K3s cluster status: {{ k3s_cluster_status.stdout }}"

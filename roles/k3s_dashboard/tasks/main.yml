@@ -1,0 +1,148 @@
+---
+- name: Install K3s Dashboard on Master
+  kubernetes.core.k8s:
+    state: present
+    definition:
+      apiVersion: apps/v1
+      kind: Deployment
+      metadata:
+        name: kubernetes-dashboard
+        namespace: k3s-dashboard
+        labels:
+          app: kubernetes-dashboard
+      spec:
+        replicas: 1
+        selector:
+          matchLabels:
+            k8s-app: kubernetes-dashboard
+        template:
+          metadata:
+            labels:
+              k8s-app: kubernetes-dashboard
+          spec:
+            containers:
+              - name: kubernetes-dashboard
+                image: k8s.gcr.io/kubernetes-dashboard:v2.4.0
+                ports:
+                  - containerPort: 8443
+                volumeMounts:
+                  - name: dashboard-certs
+                    mountPath: /certs
+                    readOnly: true
+                resources:
+                  requests:
+                    cpu: 100m
+                    memory: 128Mi
+                  limits:
+                    cpu: 200m
+                    memory: 256Mi
+            volumes:
+              - name: dashboard-certs
+                secret:
+                  secretName: kubernetes-dashboard-certs
+  kubeconfig: /etc/rancher/k3s/k3s.yaml
+
+- name: Expose K3s Dashboard as ClusterIP (internal only)
+  kubernetes.core.k8s:
+    state: present
+    definition:
+      apiVersion: v1
+      kind: Service
+      metadata:
+        name: kubernetes-dashboard
+        namespace: k3s-dashboard
+        labels:
+          app: kubernetes-dashboard
+      spec:
+        ports:
+          - port: 443
+            targetPort: 8443
+            protocol: TCP
+        selector:
+          k8s-app: kubernetes-dashboard
+        type: ClusterIP
+  kubeconfig: /etc/rancher/k3s/k3s.yaml
+
+- name: Create ServiceAccount for Kubernetes Dashboard access
+  kubernetes.core.k8s:
+    state: present
+    definition:
+      apiVersion: v1
+      kind: ServiceAccount
+      metadata:
+        name: kubernetes-dashboard-sa
+        namespace: k3s-dashboard
+  kubeconfig: /etc/rancher/k3s/k3s.yaml
+
+- name: Create Role for Kubernetes Dashboard service account
+  kubernetes.core.k8s:
+    state: present
+    definition:
+      apiVersion: rbac.authorization.k8s.io/v1
+      kind: Role
+      metadata:
+        name: kubernetes-dashboard-role
+        namespace: k3s-dashboard
+      rules:
+        - apiGroups: [""]
+          resources: ["pods", "services", "endpoints", "namespaces"]
+          verbs: ["get", "list", "watch"]
+        - apiGroups: ["apps"]
+          resources: ["deployments"]
+          verbs: ["get", "list", "watch"]
+  kubeconfig: /etc/rancher/k3s/k3s.yaml
+
+- name: Create RoleBinding for Dashboard ServiceAccount with limited permissions
+  kubernetes.core.k8s:
+    state: present
+    definition:
+      apiVersion: rbac.authorization.k8s.io/v1
+      kind: RoleBinding
+      metadata:
+        name: kubernetes-dashboard-rolebinding
+        namespace: k3s-dashboard
+      subjects:
+        - kind: ServiceAccount
+          name: kubernetes-dashboard-sa
+          namespace: k3s-dashboard
+      roleRef:
+        kind: Role
+        name: kubernetes-dashboard-role
+        apiGroup: rbac.authorization.k8s.io
+  kubeconfig: /etc/rancher/k3s/k3s.yaml
+
+- name: Get Bearer Token for Dashboard Access
+  command: "kubectl -n k3s-dashboard describe secret $(kubectl -n k3s-dashboard get secret | grep kubernetes-dashboard-sa | awk '{print $1}')"
+  register: dashboard_token
+  changed_when: false
+  kubeconfig: /etc/rancher/k3s/k3s.yaml
+
+- name: Display Bearer Token
+  debug:
+    msg: "Bearer Token for Dashboard Access: {{ dashboard_token.stdout }}"
+
+- name: Create Dashboard ingress for Tailscale access only (optional, requires Ingress Controller)
+  kubernetes.core.k8s:
+    state: present
+    definition:
+      apiVersion: networking.k8s.io/v1
+      kind: Ingress
+      metadata:
+        name: kubernetes-dashboard
+        namespace: k3s-dashboard
+        annotations:
+          nginx.ingress.kubernetes.io/whitelist-source-range: "100.0.0.0/8"
+      spec:
+        rules:
+          - host: "dashboard.{{ ansible_host }}"
+            http:
+              paths:
+                - path: /
+                  pathType: Prefix
+                  backend:
+                    service:
+                      name: kubernetes-dashboard
+                      port:
+                        number: 443
+  kubeconfig: /etc/rancher/k3s/k3s.yaml
+  when: install_ingress_controller | default(false)

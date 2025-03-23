@@ -1,0 +1,56 @@
+---
+- name: Deploy K3s Tailscale and Dashboard
+  hosts: k3s_master
+  become: yes
+  roles:
+    - k3s_tailscale
+    - k3s_dashboard
+    - tailscale_dashboard_proxy
+
+- name: Deploy Postgres Database Cluster
+  hosts: k3s_cluster
+  become: yes
+  roles:
+    - postgres_database_main
+    - postgres_database_dev
+
+- name: Deploy Redis Database Cluster
+  hosts: k3s_cluster
+  become: yes
+  roles:
+    - redis_database_main
+    - redis_database_dev
+
+- name: Deploy Hashicorp Vault Cluster
+  hosts: k3s_cluster
+  become: yes
+  roles:
+    - vault_main
+    - vault_dev
+
+- name: Deploy loopback4 backend
+  hosts: k3s_workers
+  become: yes
+  roles:
+    - backend_main
+    - backend_dev
+
+- name: Deploy HAProxy LoadBalancer
+  hosts: load_balancers
+  become: yes
+  roles:
+    - haproxy_loadbalancer_main
+    - haproxy_loadbalancer_dev
+
+- name: Deploy Cloudflare Tunnel
+  hosts: load_balancers
+  become: yes
+  roles:
+    - cloudflare_tunnel_main
+    - cloudflare_tunnel_dev
+
+#- name: Install Monitoring Stack
+#  hosts: master
+#  become: yes
+#  roles:
+#  - monitoring

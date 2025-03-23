@@ -1,0 +1,30 @@
+---
+- name: Configure logrotate for system logs
+  copy:
+    dest: /etc/logrotate.d/system
+    content: |
+      /var/log/syslog
+      /var/log/auth.log
+      /var/log/kern.log
+      /var/log/dmesg
+      {
+          rotate 7
+          daily
+          compress
+          delaycompress
+          missingok
+          notifempty
+      }
+
+- name: Configure logrotate for K3s logs
+  copy:
+    dest: /etc/logrotate.d/k3s
+    content: |
+      /var/log/k3s.log
+      {
+          rotate 7
+          daily
+          compress
+          missingok
+          notifempty
+      }

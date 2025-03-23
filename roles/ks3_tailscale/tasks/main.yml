@@ -1,0 +1,124 @@
+---
+- name: Create the k3s-dashboard namespace
+  kubernetes.core.k8s:
+    state: present
+    definition:
+      apiVersion: v1
+      kind: Namespace
+      metadata:
+        name: k3s-dashboard
+  kubeconfig: /etc/rancher/k3s/k3s.yaml
+
+- name: Create a Service Account for Tailscale in the k3s-dashboard namespace
+  kubernetes.core.k8s:
+    state: present
+    definition:
+      apiVersion: v1
+      kind: ServiceAccount
+      metadata:
+        name: tailscale-sa
+        namespace: k3s-dashboard
+  kubeconfig: /etc/rancher/k3s/k3s.yaml
+
+- name: Create ClusterRole for Tailscale ServiceAccount
+  kubernetes.core.k8s:
+    state: present
+    definition:
+      apiVersion: rbac.authorization.k8s.io/v1
+      kind: ClusterRole
+      metadata:
+        name: tailscale-role
+      rules:
+        - apiGroups: [""]
+          resources: ["pods", "services", "endpoints", "namespaces"]
+          verbs: ["get", "list", "watch"]
+  kubeconfig: /etc/rancher/k3s/k3s.yaml
+
+- name: Create ClusterRoleBinding to bind ServiceAccount with ClusterRole
+  kubernetes.core.k8s:
+    state: present
+    definition:
+      apiVersion: rbac.authorization.k8s.io/v1
+      kind: ClusterRoleBinding
+      metadata:
+        name: tailscale-rolebinding
+      subjects:
+        - kind: ServiceAccount
+          name: tailscale-sa
+          namespace: k3s-dashboard
+      roleRef:
+        kind: ClusterRole
+        name: tailscale-role
+        apiGroup: rbac.authorization.k8s.io
+  kubeconfig: /etc/rancher/k3s/k3s.yaml
+
+- name: Create Tailscale Auth Secret in k3s-dashboard namespace
+  kubernetes.core.k8s:
+    state: present
+    definition:
+      apiVersion: v1
+      kind: Secret
+      metadata:
+        name: tailscale-auth
+        namespace: k3s-dashboard
+      type: Opaque
+      data:
+        TS_AUTHKEY: "{{ tailscale_authkey | b64encode }}"
+  kubeconfig: /etc/rancher/k3s/k3s.yaml
+
+- name: Deploy Tailscale Proxy Pod with ServiceAccount
+  kubernetes.core.k8s:
+    state: present
+    definition:
+      apiVersion: apps/v1
+      kind: Deployment
+      metadata:
+        name: tailscale-dashboard
+        namespace: k3s-dashboard
+      spec:
+        replicas: 1
+        selector:
+          matchLabels:
+            app: tailscale-dashboard
+        template:
+          metadata:
+            labels:
+              app: tailscale-dashboard
+          spec:
+            serviceAccountName: tailscale-sa
+            containers:
+              - name: tailscale
+                image: ghcr.io/tailscale/tailscale:latest
+                securityContext:
+                  privileged: true
+                env:
+                  - name: TS_AUTHKEY
+                    valueFrom:
+                      secretKeyRef:
+                        name: tailscale-auth
+                        key: TS_AUTHKEY
+                args:
+                  - "tailscaled"
+                volumeMounts:
+                  - mountPath: /var/lib/tailscale
+                    name: tailscale-state
+                  - mountPath: /dev/net/tun
+                    name: dev-net-tun
+              - name: proxy
+                image: alpine/socat
+                command:
+                  - "socat"
+                args:
+                  - "TCP-LISTEN:8080,fork,reuseaddr"
+                  - "TCP:kubernetes-dashboard.kube-system.svc.cluster.local:443"
+            volumes:
+              - name: tailscale-state
+                emptyDir: {}
+              - name: dev-net-tun
+                hostPath:
+                  path: /dev/net/tun
+  kubeconfig: /etc/rancher/k3s/k3s.yaml
+
+- name: Display Tailscale Access Information
+  debug:
+    msg: "Tailscale proxy pod deployed. Access Kubernetes Dashboard via Tailscale VPN at 'http://<Tailscale-IP>:8080'."

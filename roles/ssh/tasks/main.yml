@@ -1,0 +1,16 @@
+---
+- name: Create SSH banner for security
+  lineinfile:
+    path: /etc/ssh/sshd_config
+    regexp: '^#Banner'
+    line: "Banner /etc/issue.net"
+  notify:
+    - Restart SSH
+
+- name: Set SSH port
+  lineinfile:
+    path: /etc/ssh/sshd_config
+    regexp: '^#?Port'
+    line: "Port 22"
+  notify:
+    - Restart SSH

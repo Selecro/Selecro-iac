@@ -1,0 +1,24 @@
+---
+- name: Basic Setup for Ubuntu Servers
+  hosts: k3s_cluster
+  become: yes
+  roles:
+    - basic_setup
+    - firewall
+    - fail2ban
+    - ssh
+    - auditd
+    - logrotate_config
+    - unattended_upgrades
+
+- name: Setup TailScale VPN
+  hosts: k3s_cluster
+  become: yes
+  roles:
+    - tailscale
+
+- name: Setup K3s Cluster
+  hosts: k3s_cluster
+  become: yes
+  roles:
+    - k3s

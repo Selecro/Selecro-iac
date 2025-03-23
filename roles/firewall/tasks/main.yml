@@ -1,0 +1,25 @@
+---
+- name: Enable UFW (Uncomplicated Firewall)
+  ufw:
+    state: enabled
+    policy: deny
+    logging: on
+
+- name: Allow OpenSSH through the firewall
+  ufw:
+    rule: allow
+    name: OpenSSH
+    from_ip: 
+      - 192.168.0.0/24
+      - 100.0.0.0/8
+    to_port: 22
+    proto: tcp
+
+- name: Allow K3s traffic
+  ufw:
+    rule: allow
+    from_ip: 
+      - 192.168.0.0/24
+      - 100.0.0.0/8
+    to_port: 6443
+    proto: tcp

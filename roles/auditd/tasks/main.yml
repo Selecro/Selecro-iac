@@ -1,0 +1,18 @@
+---
+- name: Install auditd package
+  apt:
+    name: auditd
+    state: present
+    update_cache: yes
+
+- name: Ensure auditd service is started and enabled
+  service:
+    name: auditd
+    state: started
+    enabled: yes
+
+- name: Configure audit rules (example: track sudo commands)
+  lineinfile:
+    path: /etc/audit/rules.d/audit.rules
+    line: '-w /usr/bin/sudo -p x -k sudo'
+    create: yes

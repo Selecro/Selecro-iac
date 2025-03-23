@@ -1,0 +1,36 @@
+---
+- name: Set hostname
+  hostname:
+    name: "{{ inventory_hostname }}"
+
+- name: Update all apt repositories and installed packages
+  apt:
+    update_cache: yes
+    upgrade: dist
+    cache_valid_time: 3600
+
+- name: Install essential packages
+  apt:
+    name:
+      - ufw
+      - fail2ban
+      - htop
+      - vim
+      - curl
+      - net-tools
+      - wget
+      - iputils-ping
+      - apt-transport-https
+      - gnupg
+      - lsb-release
+      - software-properties-common
+      - jq
+      - unzip
+      - dnsutils
+      - ca-certificates
+      - socat
+      - iptables
+      - conntrack
+      - logrotate
+    state: present
+    update_cache: yes

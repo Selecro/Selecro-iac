@@ -1,0 +1,31 @@
+ansible_user: michael
+ansible_ssh_private_key_file: id_rsa
+ansible_ssh_common_args: '-o StrictHostKeyChecking=no'
+ansible_python_interpreter: '/usr/bin/python3'
+
+tailscale_auth_key: changeme
+
+email_host: smtp.example.com
+email_password: changeme
+email_user:
+imgur_client_id: changeme
+instruction_key_premium: changeme
+instruction_key_premium_permissions: changeme
+jwt_secret: changeme
+jwt_secret_email: changeme
+jwt_secret_signup: changeme
+
+backend_name_main: changeme
+backend_name_dev: changeme
+image_registry: changeme
+
+haproxy_namespace_main: changeme
+haproxy_namespace_dev: changeme
+
+cloudflare_account_id: changeme
+cloudflare_api_token: changeme
+cloudflare_domain: changeme
+cloudflare_tunnel_name_main: changeme
+cloudflare_tunnel_name_dev: changeme
+cloudflare_dns_record_name_main: changeme
+cloudflare_dns_record_name_dev: changeme

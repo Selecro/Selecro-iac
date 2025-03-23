@@ -51,7 +51,5 @@ venv/
 *.sqlite
 *.db
 *.csv
-inventory/test.ini
-inventory/hosts.ini
-output.txt
-test-output.txt
+output/production.txt
+output/dev.txt
