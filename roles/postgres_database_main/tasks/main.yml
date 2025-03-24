@@ -1,14 +1,14 @@
 - name: Deploy PostgreSQL Namespace
   kubernetes.core.k8s:
     state: present
-    name: postgresql-selecro-dev
+    name: postgresql-selecro-main
     api_version: v1
     kind: Namespace
   become: true
 
 - name: Create directory for PostgreSQL data storage
   file:
-    path: /mnt/data/postgresql-selecro-dev
+    path: /mnt/data/postgresql-selecro-main
     state: directory
     mode: '0755'
   become: true
@@ -16,12 +16,12 @@
 - name: Create PostgreSQL Persistent Volume
   kubernetes.core.k8s:
     state: present
-    namespace: postgresql-selecro-dev
+    namespace: postgresql-selecro-main
     definition:
       apiVersion: v1
       kind: PersistentVolume
       metadata:
-        name: postgresql-selecro-dev-pv
+        name: postgresql-selecro-main-pv
       spec:
         capacity:
           storage: 1Gi
@@ -29,7 +29,7 @@
           - ReadWriteOnce
         persistentVolumeReclaimPolicy: Retain
         hostPath:
-          path: /mnt/data/postgresql-selecro-dev
+          path: /mnt/data/postgresql-selecro-main
         storageClassName: manual
     force: true
   become: true
@@ -37,7 +37,7 @@
 - name: Deploy PostgreSQL StatefulSet
   kubernetes.core.k8s:
     state: present
-    namespace: postgresql-selecro-dev
+    namespace: postgresql-selecro-main
     definition:
       apiVersion: apps/v1
       kind: StatefulSet
@@ -48,39 +48,39 @@
         replicas: 1
         selector:
           matchLabels:
-            app: postgresql-selecro-dev
+            app: postgresql-selecro-main
         template:
           metadata:
             labels:
-              app: postgresql-selecro-dev
+              app: postgresql-selecro-main
           spec:
             containers:
-              - name: postgresql-selecro-dev
+              - name: postgresql-selecro-main
                 image: postgres:13
                 env:
                   - name: POSTGRES_USER
                     valueFrom:
                       secretKeyRef:
-                        name: postgresql-selecro-dev-secret
+                        name: postgresql-selecro-main-secret
                         key: POSTGRES_USER
                   - name: POSTGRES_PASSWORD
                     valueFrom:
                       secretKeyRef:
-                        name: postgresql-selecro-dev-secret
+                        name: postgresql-selecro-main-secret
                         key: POSTGRES_PASSWORD
                   - name: POSTGRES_DB
                     valueFrom:
                       secretKeyRef:
-                        name: postgresql-selecro-dev-secret
+                        name: postgresql-selecro-main-secret
                         key: POSTGRES_DB
                 ports:
                   - containerPort: 5432
                 volumeMounts:
-                  - name: postgresql-selecro-dev-data
+                  - name: postgresql-selecro-main-data
                     mountPath: /var/lib/postgresql/data
         volumeClaimTemplates:
           - metadata:
-              name: postgresql-selecro-dev-data
+              name: postgresql-selecro-main-data
             spec:
               accessModes:
                 - ReadWriteOnce
@@ -93,12 +93,12 @@
 - name: Create PostgreSQL Secrets
   kubernetes.core.k8s:
     state: present
-    namespace: postgresql-selecro-dev
+    namespace: postgresql-selecro-main
     definition:
       apiVersion: v1
       kind: Secret
       metadata:
-        name: postgresql-selecro-dev-secret
+        name: postgresql-selecro-main-secret
       type: Opaque
       data:
         POSTGRES_USER: "{{ postgres_user | b64encode }}"
@@ -109,15 +109,15 @@
 - name: Expose PostgreSQL with a service
   kubernetes.core.k8s:
     state: present
-    namespace: postgresql-selecro-dev
+    namespace: postgresql-selecro-main
     definition:
       apiVersion: v1
       kind: Service
       metadata:
-        name: postgresql-selecro-dev
+        name: postgresql-selecro-main
       spec:
         selector:
-          app: postgresql-selecro-dev
+          app: postgresql-selecro-main
         ports:
           - port: 5432
             targetPort: 5432

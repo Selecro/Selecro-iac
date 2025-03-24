@@ -1,7 +1,18 @@
 ---
-- name: Set hostname
-  hostname:
-    name: "{{ inventory_hostname }}"
+- name: Get current hostname
+  command: hostname -f
+  register: current_hostname_output
+  changed_when: false
+
+- name: Set hostname using hostnamectl
+  command: "sudo hostnamectl set-hostname {{ inventory_hostname }}"
+  when: current_hostname_output.stdout != inventory_hostname
+  register: hostname_change_result
+  failed_when: hostname_change_result.rc != 0
+
+- name: Display hostname change result
+  debug:
+    var: hostname_change_result
 
 - name: Update all apt repositories and installed packages
   apt:

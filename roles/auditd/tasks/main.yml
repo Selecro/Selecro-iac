@@ -11,7 +11,7 @@
     state: started
     enabled: yes
 
-- name: Configure audit rules (example: track sudo commands)
+- name: "Configure audit rules (example: track sudo commands)"
   lineinfile:
     path: /etc/audit/rules.d/audit.rules
     line: '-w /usr/bin/sudo -p x -k sudo'

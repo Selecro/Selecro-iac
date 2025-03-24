@@ -51,5 +51,5 @@ venv/
 *.sqlite
 *.db
 *.csv
-output/production.txt
-output/dev.txt
+output/*
+facts_cache/*

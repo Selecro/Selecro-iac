@@ -5,21 +5,12 @@
     policy: deny
     logging: on
 
-- name: Allow OpenSSH through the firewall
+- name: Allow K3s traffic from specified networks
   ufw:
     rule: allow
-    name: OpenSSH
-    from_ip: 
-      - 192.168.0.0/24
-      - 100.0.0.0/8
-    to_port: 22
-    proto: tcp
-
-- name: Allow K3s traffic
-  ufw:
-    rule: allow
-    from_ip: 
-      - 192.168.0.0/24
-      - 100.0.0.0/8
+    from_ip: "{{ item }}"
     to_port: 6443
     proto: tcp
+  loop: "{{ [ '192.168.0.0/24', '100.0.0.0/8' ] }}"
+  loop_control:
+    label: "Allowing from {{ item }}"
