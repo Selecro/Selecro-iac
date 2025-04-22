@@ -11,6 +11,16 @@
     from_ip: "{{ item }}"
     to_port: 6443
     proto: tcp
-  loop: "{{ [ '192.168.0.0/24', '100.0.0.0/8' ] }}"
+  loop: "{{ [ '192.168.0.0/24', '100.0.0.0/8', '127.0.0.1/32' ] }}"
+  loop_control:
+    label: "Allowing from {{ item }}"
+
+- name: Allow SSH traffic from specified networks
+  ufw:
+    rule: allow
+    from_ip: "{{ item }}"
+    to_port: 22
+    proto: tcp
+  loop: "{{ [ '192.168.0.0/24', '100.0.0.0/8', '127.0.0.1/32' ] }}"
   loop_control:
     label: "Allowing from {{ item }}"

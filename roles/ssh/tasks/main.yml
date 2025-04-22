@@ -1,5 +1,40 @@
 ---
-- name: Create SSH banner for security
+- name: Create SSH banner directory (if it doesn't exist)
+  file:
+    path: /etc/issue.d
+    state: directory
+    owner: root
+    group: root
+    mode: '0755'
+
+- name: Create banner content file
+  copy:
+    dest: /etc/issue.d/banner.txt
+    content: |
+      ###############################################################
+      #                                                             #
+      #        Welcome to Your Secure K3s Cluster Node!             #
+      #                                                             #
+      #  Unauthorized access or use is strictly prohibited.         #
+      #                                                             #
+      #  All activity is logged and may be monitored.              #
+      #                                                             #
+      ###############################################################
+
+      System Information:
+      Hostname: {{ ansible_hostname }}
+      OS: {{ ansible_distribution }} {{ ansible_distribution_version }}
+      Kernel: {{ ansible_kernel }}
+
+- name: Assemble banner content into /etc/issue.net
+  assemble:
+    src: /etc/issue.d
+    dest: /etc/issue.net
+    owner: root
+    group: root
+    mode: '0644'
+
+- name: Configure SSH banner for security
   lineinfile:
     path: /etc/ssh/sshd_config
     regexp: '^#Banner'

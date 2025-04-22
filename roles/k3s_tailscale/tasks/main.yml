@@ -1,0 +1,66 @@
+---
+- name: Ensure dashboard directory is on the Ansible control node
+  when: "'k3s-master' in group_names"
+  ansible.builtin.copy:
+    src: /home/kali/disk/files
+    dest: /tmp
+    remote_src: no
+
+- name: Create tailscale namespace
+  kubernetes.core.k8s:
+    state: present
+    src: /tmp/files/tailscale/namespace.yml
+
+- name: Create Auth Secret
+  kubernetes.core.k8s:
+    state: present
+    namespace: tailscale
+    definition:
+      apiVersion: v1
+      kind: Secret
+      metadata:
+        name: operator-oauth
+        namespace: tailscale
+      stringData:
+        client_id: "{{ tailscale_client_id }}"
+        client_secret: "{{ tailscale_client_secret }}"
+
+- name: Create tailscale Service Account
+  kubernetes.core.k8s:
+    state: present
+    src: /tmp/files/tailscale/service-account.yml
+
+- name: Create Custom Resource Definition for tailscale
+  kubernetes.core.k8s:
+    state: present
+    src: /tmp/files/tailscale/custom-rd.yml
+
+- name: Create Cluster Role for ServiceAccount with limited permissions
+  kubernetes.core.k8s:
+    state: present
+    src: /tmp/files/tailscale/cluster-role.yml
+
+- name: Create Cluster Role Binding for Service Account with Role
+  kubernetes.core.k8s:
+    state: present
+    src: /tmp/files/tailscale/cluster-role-binding.yml
+
+- name: Create Role for ServiceAccount with limited permissions
+  kubernetes.core.k8s:
+    state: present
+    src: /tmp/files/tailscale/role.yml
+
+- name: Create Role Binding for Service Account with Role
+  kubernetes.core.k8s:
+    state: present
+    src: /tmp/files/tailscale/role-binding.yml
+
+- name: Install tailscale Deployment
+  kubernetes.core.k8s:
+    state: present
+    src: /tmp/files/tailscale/deployment.yml
+
+- name: Create Ingress for tailscale
+  kubernetes.core.k8s:
+    state: present
+    src: /tmp/files/tailscale/ingress.yml

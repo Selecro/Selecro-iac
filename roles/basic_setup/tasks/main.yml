@@ -15,13 +15,37 @@
     var: hostname_change_result
 
 - name: Update all apt repositories and installed packages
-  apt:
-    update_cache: yes
-    upgrade: dist
-    cache_valid_time: 3600
+  block:
+    - name: Update apt cache
+      ansible.builtin.apt:
+        update_cache: yes
+    - name: Upgrade all packages
+      ansible.builtin.apt:
+        upgrade: dist
+      register: update_result
+      failed_when: "'dpkg was interrupted' in update_result.msg"
+  rescue:
+    - name: Attempt to fix interrupted dpkg configuration
+      ansible.builtin.command:
+        cmd: "dpkg --configure -a"
+      register: dpkg_reconfigure
+      changed_when: dpkg_reconfigure.rc != 0
+      failed_when: dpkg_reconfigure.rc != 0
+    - name: Retry apt update and upgrade after dpkg fix
+      ansible.builtin.apt:
+        update_cache: yes
+      when: "'dpkg was interrupted' in update_result.msg and dpkg_reconfigure.rc == 0"
+    - name: Retry apt upgrade after dpkg fix
+      ansible.builtin.apt:
+        upgrade: dist
+      register: update_result
+      when: "'dpkg was interrupted' in update_result.msg and dpkg_reconfigure.rc == 0"
+      until: update_result is success
+      retries: 3
+      delay: 5
 
 - name: Install essential packages
-  apt:
+  ansible.builtin.apt:
     name:
       - ufw
       - fail2ban
