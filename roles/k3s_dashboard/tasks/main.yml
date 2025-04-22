@@ -13,6 +13,13 @@
 #  changed_when: false
 
 ---
+- name: Ensure dashboard directory is on the Ansible control node
+  when: "'k3s-master' in group_names"
+  ansible.builtin.copy:
+    src: /home/kali/disk/files
+    dest: /tmp
+    remote_src: no
+    
 - name: Create dashboard namespace
   kubernetes.core.k8s:
     state: present
@@ -63,6 +70,11 @@
     state: present
     src: /tmp/files/dashboard/deployment.yml
 
+- name: Create Ingress for dashboard
+  kubernetes.core.k8s:
+    state: present
+    src: /tmp/files/dashboard/ingress.yml
+
 - name: Create Service for metrics scraper
   kubernetes.core.k8s:
     state: present
@@ -75,7 +87,7 @@
 
 
 - name: Get the admin token with expiration (1 year)
-  command: kubectl create token dashboard-sa --duration 8760h -n dashboard
+  command: kubectl create token kubernetes-dashboard --duration 8760h -n kubernetes-dashboard
   register: token_output
 
 - name: Show admin token

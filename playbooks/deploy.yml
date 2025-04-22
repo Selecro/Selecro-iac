@@ -3,7 +3,7 @@
   hosts: k3s-master
   become: yes
   roles:
-    #- k3s_dashboard
+    - k3s_dashboard
     - k3s_tailscale
 
 #- name: Deploy Postgres Database Cluster on OS

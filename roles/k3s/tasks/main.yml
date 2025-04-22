@@ -48,7 +48,7 @@
 
 - name: Install K3s agent
   when: "'k3s-workers' in group_names"
-  shell: curl -sfL https://get.k3s.io | sh -s -- agent --server https://{{ groups['k3s-master'][0] }}:6443 --token {{ k3s_token }}
+  shell: curl -sfL https://get.k3s.io | sh -s -- agent --server https://{{ hostvars[groups['k3s-master'][0]]['ansible_host'] }}:6443 --token {{ k3s_token }}
 
 - name: Enable and start K3s agent service on workers
   when: "'k3s-workers' in group_names"
