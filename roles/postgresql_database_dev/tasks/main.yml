@@ -1,0 +1,45 @@
+- name: Ensure apt cache is up to date
+  apt:
+    update_cache: yes
+
+- name: Install PostgreSQL
+  apt:
+    name: postgresql
+    state: present
+
+- name: Create PostgreSQL cluster (don't auto-start)
+  shell: pg_createcluster {{ postgresql_version }} {{ postgresql_cluster_name }}
+  args:
+    creates: "/etc/postgresql/{{ postgresql_version }}/{{ postgresql_cluster_name }}"
+
+- name: Deploy postgresql.conf
+  template:
+    src: postgresql.conf.j2
+    dest: "/etc/postgresql/{{ postgresql_version }}/{{ postgresql_cluster_name }}/postgresql.conf"
+    owner: postgres
+    group: postgres
+    mode: '0644'
+
+- name: Deploy pg_hba.conf
+  template:
+    src: pg_hba.conf.j2
+    dest: "/etc/postgresql/{{ postgresql_version }}/{{ postgresql_cluster_name }}/pg_hba.conf"
+    owner: postgres
+    group: postgres
+    mode: '0640'
+
+- name: Enable and start PostgreSQL cluster
+  systemd:
+    name: "postgresql@{{ postgresql_version }}-{{ postgresql_cluster_name }}"
+    enabled: yes
+    state: started
+
+- name: Set password for postgres user
+  become: yes
+  shell: sudo -u postgres psql -p {{ postgresql_port }} -c "ALTER USER postgres WITH PASSWORD '{{ postgresql_password }}';"
+
+- name: Allow UFW port
+  ufw:
+    rule: allow
+    port: "{{ postgresql_port }}"
+    proto: tcp

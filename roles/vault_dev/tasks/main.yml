@@ -1,190 +1,89 @@
-- name: Create vault-dev namespace
-  kubernetes.core.k8s:
-    name: vault-dev
-    api_version: v1
-    kind: Namespace
+---
+- name: Install dependencies
+  apt:
+    name: [apt-transport-https, ca-certificates, curl, gnupg, lsb-release, openssl]
+    state: present
+    update_cache: yes
+
+- name: Add HashiCorp APT repository
+  apt_repository:
+    repo: "deb [arch=amd64] https://apt.releases.hashicorp.com {{ ansible_distribution_release | lower }} main"
     state: present
 
-- name: Create Vault Service
-  kubernetes.core.k8s:
-    state: present
-    namespace: vault-dev
-    definition:
-      apiVersion: v1
-      kind: Service
-      metadata:
+- name: Install Vault
+  apt:
+    name: vault
+    state: latest
+    update_cache: yes
+
+- name: Create vault user and directories
+  block:
+    - name: Create vault user
+      user:
         name: vault
-      spec:
-        selector:
-          app: vault-dev
-        ports:
-          - protocol: TCP
-            port: 8200
-            targetPort: 8200
+        shell: /usr/sbin/nologin
 
-- name: Create Vault Service Account
-  kubernetes.core.k8s:
-    state: present
-    api_version: v1
-    kind: ServiceAccount
-    namespace: vault-dev
-    name: vault-dev-auth
+    - name: Create directories
+      file:
+        path: "{{ item }}"
+        state: directory
+        owner: vault
+        group: vault
+        mode: '0750'
+      loop:
+        - /etc/vault
+        - /opt/vault/data-dev
 
-- name: Create Cluster Role for Vault
-  kubernetes.core.k8s:
-    state: present
-    definition:
-      apiVersion: rbac.authorization.k8s.io/v1
-      kind: ClusterRole
-      metadata:
-        name: vault-dev-auth-role
-      rules:
-        - apiGroups: [""]
-          resources: ["pods", "services", "endpoints", "secrets"]
-          verbs: ["get", "list", "watch"]
-        - apiGroups: ["apps"]
-          resources: ["deployments"]
-          verbs: ["get", "list", "watch"]
+- name: Create Vault configuration file
+  copy:
+    dest: /etc/vault/config-dev.hcl
+    content: |
+      storage "file" {
+        path = "/opt/vault/data-dev"
+      }
 
-- name: Bind Vault Role to Service Account
-  kubernetes.core.k8s:
-    state: present
-    definition:
-      apiVersion: rbac.authorization.k8s.io/v1
-      kind: ClusterRoleBinding
-      metadata:
-        name: vault-dev-auth-rolebinding
-      subjects:
-        - kind: ServiceAccount
-          name: vault-dev-auth
-          namespace: vault-dev
-      roleRef:
-        kind: ClusterRole
-        name: vault-dev-auth-role
-        apiGroup: rbac.authorization.k8s.io
+      listener "tcp" {
+        address     = "0.0.0.0:8201"
+        tls-disable = 1
+      }
 
-- name: create vault configmap
-  kubernetes.core.k8s:
-    state: present
-    namespace: vault-dev
-    definition:
-      apiVersion: v1
-      kind: ConfigMap
-      metadata:
-        name: vault-config
-      data:
-        vault.hcl: |
-          storage "file" {
-            path = "/vault-dev/data"
-          }
-          ui = true
-          listener "tcp" {
-            address = "0.0.0.0:8200"
-            tls_disable = 1
-          }
-          api_addr = "http://0.0.0.0:8200"
-          cluster_addr = "http://0.0.0.0:8201"
-          disable_mlock = true
+      ui = true
+    owner: vault
+    group: vault
+    mode: '0640'
+  notify: Restart Vault
 
-- name: Deploy Vault (with HTTP listener)
-  kubernetes.core.k8s:
-    state: present
-    namespace: vault-dev
-    definition:
-      apiVersion: apps/v1
-      kind: Deployment
-      metadata:
-        name: vault-dev-deployment
-      spec:
-        replicas: 1
-        selector:
-          matchLabels:
-            app: vault-dev
-        template:
-          metadata:
-            labels:
-              app: vault-dev
-          spec:
-            serviceAccountName: vault-dev-auth
-            containers:
-              - name: vault
-                image: hashicorp/vault:latest
-                ports:
-                  - containerPort: 8200
-                command:
-                  - "vault"
-                  - "server"
-                  - "-config=/vault/config/vault.hcl"
-                env:
-                  - name: VAULT_ADDR
-                    value: "http://127.0.0.1:8200"
-                  - name: VAULT_LISTENER
-                    value: "tcp"
-                  - name: VAULT_HTTP_ADDR
-                    value: "0.0.0.0:8200"
-                volumeMounts:
-                  - name: vault-data
-                    mountPath: /vault-dev/data
-                  - name: vault-config
-                    mountPath: /vault/config
-            volumes:
-              - name: vault-data
-                hostPath:
-                  path: /mnt/vault-dev/data
-                  type: DirectoryOrCreate
-              - name: vault-config
-                configMap:
-                  name: vault-config
+- name: Create systemd service for Vault
+  copy:
+    dest: /etc/systemd/system/vault-dev.service
+    content: |
+      [Unit]
+      Description=Vault server (dev)
+      Requires=network-online.target
+      After=network-online.target
 
-- name: Wait for Vault pods to be ready
-  kubernetes.core.k8s_info:
-    kind: Pod
-    namespace: "vault-dev"
-  register: vault_dev_pods
-  until: vault_dev_pods.resources | selectattr('status.phase', 'equalto', 'Running') | list | length > 0
-  retries: 30
-  delay: 10
+      [Service]
+      User=vault
+      Group=vault
+      ExecStart=/usr/bin/vault server -config=/etc/vault/config-dev.hcl
+      ExecReload=/bin/kill -HUP $MAINPID
+      KillMode=process
+      Restart=on-failure
+      LimitNOFILE=65536
 
-- name: Get Vault pod name
-  shell: |
-    kubectl get pods -n vault-dev -o jsonpath="{.items[0].metadata.name}"
-  register: vault_dev_pod_name
+      [Install]
+      WantedBy=multi-user.target
+  notify: Restart Vault
 
-- name: Debug Vault pod name
-  debug:
-    var: vault_dev_pod_name.stdout
+- name: Enable and start Vault service
+  systemd:
+    name: vault-dev
+    enabled: yes
+    state: started
 
-- name: Initialize Vault
-  shell: |
-    kubectl exec -n vault-dev {{ vault_dev_pod_name.stdout }} -- vault operator init -key-shares=3 -key-threshold=2 -format=json
-  register: vault_init_output
-
-- name: Parse Vault root token and unseal keys
-  set_fact:
-    root_token: "{{ vault_init_output.stdout | from_json | json_query('root_token') }}"
-    unseal_keys: "{{ vault_init_output.stdout | from_json | json_query('unseal_keys_b64') }}"
-
-- name: Create Kubernetes Secret for Vault credentials
-  kubernetes.core.k8s:
-    state: present
-    namespace: vault-dev
-    definition:
-      apiVersion: v1
-      kind: Secret
-      metadata:
-        name: vault-secrets
-      type: Opaque
-      data:
-        root_token: "{{ root_token | b64encode }}"
-        unseal_key_1: "{{ unseal_keys[0] | b64encode }}"
-        unseal_key_2: "{{ unseal_keys[1] | b64encode }}"
-        unseal_key_3: "{{ unseal_keys[2] | b64encode }}"
-
-- name: Debug root token
-  debug:
-    var: root_token
-
-- name: Debug unseal keys
-  debug:
-    var: unseal_keys
-    
+- name: Enable UFW and allow Vault port
+  ufw:
+    rule: allow
+    port: '8201'
+    proto: tcp
+  tags: firewall

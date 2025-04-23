@@ -1,0 +1,10 @@
+listen_addresses = '*'
+port = {{ postgresql_port }}
+max_connections = 100
+shared_buffers = 256MB
+effective_cache_size = 768MB
+work_mem = 4MB
+maintenance_work_mem = 64MB
+logging_collector = on
+log_directory = 'pg_log'
+log_filename = 'postgresql-%a.log'

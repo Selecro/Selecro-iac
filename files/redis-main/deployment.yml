@@ -1,0 +1,29 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: redis-main
+  namespace: redis-main
+  labels:
+    app: redis-main
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: redis-main
+  template:
+    metadata:
+      labels:
+        app: redis-main
+    spec:
+      containers:
+        - name: redis-main
+          image: redis:alpine
+          ports:
+            - containerPort: 6379
+          volumeMounts:
+            - name: redis-main-data
+              mountPath: /data-main
+      volumes:
+        - name: redis-main-data
+          persistentVolumeClaim:
+            claimName: redis-main-pvc

@@ -1,0 +1,6 @@
+---
+- name: Restart Vault
+  systemd:
+    name: vault-dev
+    state: restarted
+    enabled: yes

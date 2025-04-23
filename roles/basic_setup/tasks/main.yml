@@ -69,3 +69,18 @@
       - logrotate
     state: present
     update_cache: yes
+
+- name: Install required system packages
+  apt:
+    name:
+      - python3-pip
+      - python3-kubernetes
+      - python3-psycopg2
+    state: present
+    update_cache: yes
+
+- name: Verify kubernetes module import works
+  command: /usr/bin/python3 -c "import kubernetes"
+  register: import_check
+  failed_when: import_check.rc != 0
+  changed_when: 

@@ -1,0 +1,6 @@
+---
+- name: Restart PostgreSQL Main
+  systemd:
+    name: "postgresql@{{ postgresql_version }}-{{ postgresql_cluster_name }}"
+    state: restarted
+    enabled: yes

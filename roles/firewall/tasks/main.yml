@@ -5,22 +5,12 @@
     policy: deny
     logging: on
 
-- name: Allow K3s traffic from specified networks
+- name: Allow multiple ports from multiple networks
   ufw:
     rule: allow
-    from_ip: "{{ item }}"
-    to_port: 6443
+    from_ip: "{{ item.0 }}"
+    to_port: "{{ item.1 }}"
     proto: tcp
-  loop: "{{ [ '192.168.0.0/24', '100.0.0.0/8', '127.0.0.1/32' ] }}"
+  loop: "{{ lookup('cartesian', [ ['192.168.0.0/24', '100.0.0.0/8', '127.0.0.1/32'], [22, 53, 6443, 10250, 10255, 32899, 59329] ]) }}"
   loop_control:
-    label: "Allowing from {{ item }}"
-
-- name: Allow SSH traffic from specified networks
-  ufw:
-    rule: allow
-    from_ip: "{{ item }}"
-    to_port: 22
-    proto: tcp
-  loop: "{{ [ '192.168.0.0/24', '100.0.0.0/8', '127.0.0.1/32' ] }}"
-  loop_control:
-    label: "Allowing from {{ item }}"
+    label: "Allowing {{ item.1 }} from {{ item.0 }}"

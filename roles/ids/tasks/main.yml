@@ -1,0 +1,71 @@
+- name: Get list of active network interfaces (excluding lo)
+  command: ip -o link show up
+  register: interface_info
+
+- name: Set snort_interface to the first active, non-loopback interface
+  set_fact:
+    snort_interface: "{{ item }}"
+  with_items: "{{ interface_info.stdout_lines | map('regex_search', '^\\d+: ([^:]+):') | select('string') | list }}"
+  when: item != 'lo' and item != ""
+  loop_control:
+    break_when: snort_interface != ""
+
+- name: Print chosen interface
+  debug:
+    msg: "Using interface {{ snort_interface }} for IDS/IPS"
+
+- name: Update APT package cache
+  apt:
+    update_cache: yes
+    cache_valid_time: 3600
+
+- name: Install Suricata
+  apt:
+    name: suricata
+    state: present
+
+- name: Enable and start Suricata service
+  systemd:
+    name: suricata
+    enabled: yes
+    state: started
+
+- name: Install Snort and dependencies
+  apt:
+    name:
+      - build-essential
+      - libpcap-dev
+      - libpcre3-dev
+      - libdumbnet-dev
+      - zlib1g-dev
+      - bison
+      - flex
+      - liblzma-dev
+      - openssl
+      - libssl-dev
+      - snort
+    state: present
+
+- name: Create Snort rules directory
+  file:
+    path: /etc/snort/rules
+    state: directory
+    mode: "0755"
+
+- name: Copy example Snort rule
+  copy:
+    dest: /etc/snort/rules/local.rules
+    content: |
+      alert icmp any any -> any any (msg:"ICMP Packet Detected"; sid:1000001; rev:1;)
+
+- name: Set Snort interface in config
+  lineinfile:
+    path: /etc/snort/snort.debian.conf
+    regexp: "^DEBIAN_SNORT_INTERFACE="
+    line: "DEBIAN_SNORT_INTERFACE={{ snort_interface }}"
+
+- name: Enable and start Snort
+  systemd:
+    name: snort
+    enabled: yes
+    state: started

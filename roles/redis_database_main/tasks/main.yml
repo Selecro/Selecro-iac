@@ -1,0 +1,37 @@
+---
+- name: Install required system packages
+  apt:
+    name:
+      - python3-pip
+      - python3-kubernetes
+      - python3-psycopg2
+    state: present
+    update_cache: yes
+
+- name: Verify kubernetes module import works
+  command: /usr/bin/python3 -c "import kubernetes"
+  register: import_check
+  failed_when: import_check.rc != 0
+  changed_when: 
+  
+- name: Ensure redis-main directory is on the Ansible control node
+  when: "'k3s-master' in group_names"
+  ansible.builtin.copy:
+    src: /home/kali/disk/files
+    dest: /tmp
+    remote_src: no
+    
+- name: Create redis namespace
+  kubernetes.core.k8s:
+    state: present
+    src: /tmp/files/redis-main/namespace.yml
+
+- name: Install redis Service
+  kubernetes.core.k8s:
+    state: present
+    src: /tmp/files/redis-main/service.yml
+
+- name: Install redis Deployment
+  kubernetes.core.k8s:
+    state: present
+    src: /tmp/files/redis-main/deployment.yml
