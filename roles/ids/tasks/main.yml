@@ -1,71 +1,82 @@
+#- name: Get raw interface info
+#  command: ip -o link show up
+#  register: raw_interface_info
+#  changed_when: false
+
+#- name: Print raw interface info
+#  debug:
+#    var: raw_interface_info.stdout_lines
+
+#- name: Debugging Jinja2 Filters
+#  debug:
+#    msg:
+#      - "Mapped Interfaces: {{ raw_interface_info.stdout_lines | map('regex_search', '^\\d+: ([^:]+):') }}"
+#      - "String Interfaces: {{ raw_interface_info.stdout_lines | map('regex_search', '^\\d+: ([^:]+):') | select('string') }}"
+#      - "Non-lo Interfaces: {{ raw_interface_info.stdout_lines | map('regex_search', '^\\d+: ([^:]+):') | select('string') | reject('equalto', 'lo:') }}"
+#      - "Snort Interface (Attempt): {{ raw_interface_info.stdout_lines | map('regex_search', '^\\d+: ([^:]+):') | select('string') | reject('equalto', 'lo:') | first | default('None found') }}"
+
+#- name: Set snort_interface (final attempt for now)
+#  ansible.builtin.set_fact:
+#    snort_interface: "{{ raw_interface_info.stdout_lines | map('regex_search', '^\\d+: ([^:]+):') | select('string') | map('regex_replace', '^\\d+: ([^:]+):$', '\\1') | reject('equalto', 'lo') | first | default(omit) }}"
+
+#- name: Print chosen interface (final check for now)
+#  debug:
+#    msg: "Using interface {{ snort_interface | default('None found') }} for IDS/IPS"
+
 - name: Get list of active network interfaces (excluding lo)
   command: ip -o link show up
   register: interface_info
+  changed_when: false
 
 - name: Set snort_interface to the first active, non-loopback interface
-  set_fact:
-    snort_interface: "{{ item }}"
-  with_items: "{{ interface_info.stdout_lines | map('regex_search', '^\\d+: ([^:]+):') | select('string') | list }}"
-  when: item != 'lo' and item != ""
-  loop_control:
-    break_when: snort_interface != ""
+  ansible.builtin.set_fact:
+    snort_interface: "{{ interface_info.stdout_lines | map('regex_search', '^\\d+: ([^:]+):') | select('string') | map('regex_replace', '^\\d+: ([^:]+):$', '\\1') | reject('equalto', 'lo') | first | default(omit) }}"
+  when: interface_info.stdout_lines is defined and interface_info.stdout_lines | length > 0
 
 - name: Print chosen interface
   debug:
-    msg: "Using interface {{ snort_interface }} for IDS/IPS"
-
-- name: Update APT package cache
-  apt:
-    update_cache: yes
-    cache_valid_time: 3600
-
-- name: Install Suricata
-  apt:
-    name: suricata
-    state: present
+    msg: "Using interface {{ snort_interface | default('None found') }} for IDS/IPS"
 
 - name: Enable and start Suricata service
   systemd:
     name: suricata
     enabled: yes
     state: started
+  when: snort_interface is defined
 
-- name: Install Snort and dependencies
-  apt:
-    name:
-      - build-essential
-      - libpcap-dev
-      - libpcre3-dev
-      - libdumbnet-dev
-      - zlib1g-dev
-      - bison
-      - flex
-      - liblzma-dev
-      - openssl
-      - libssl-dev
-      - snort
+- name: Configure Suricata interface (if applicable - adjust file and setting)
+  lineinfile:
+    path: /etc/suricata/suricata.yaml # Adjust this path as needed
+    regexp: "^af-packet:" # Example: look for the af-packet section
+    insertafter: "^af-packet:"
+    line: "  - interface: '{{ snort_interface }}'" # Adjust the setting name
     state: present
+  when: snort_interface is defined and ansible_os_family == "Debian" # Example condition
 
 - name: Create Snort rules directory
   file:
     path: /etc/snort/rules
     state: directory
     mode: "0755"
+  when: snort_interface is defined
 
 - name: Copy example Snort rule
   copy:
     dest: /etc/snort/rules/local.rules
     content: |
       alert icmp any any -> any any (msg:"ICMP Packet Detected"; sid:1000001; rev:1;)
+  when: snort_interface is defined
 
 - name: Set Snort interface in config
   lineinfile:
     path: /etc/snort/snort.debian.conf
     regexp: "^DEBIAN_SNORT_INTERFACE="
     line: "DEBIAN_SNORT_INTERFACE={{ snort_interface }}"
+  when: snort_interface is defined and ansible_os_family == "Debian" # Example condition
 
 - name: Enable and start Snort
   systemd:
     name: snort
     enabled: yes
     state: started
+  when: snort_interface is defined

@@ -61,7 +61,6 @@
   when: "'k3s-master' in group_names"
   command: kubectl get nodes
   register: k3s_nodes
-  become: false
 
 - name: Display K3s nodes
   when: "'k3s-master' in group_names"

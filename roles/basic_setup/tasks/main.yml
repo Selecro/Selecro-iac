@@ -14,39 +14,44 @@
   debug:
     var: hostname_change_result
 
-- name: Update all apt repositories and installed packages
-  block:
-    - name: Update apt cache
-      ansible.builtin.apt:
-        update_cache: yes
-    - name: Upgrade all packages
-      ansible.builtin.apt:
-        upgrade: dist
-      register: update_result
-      failed_when: "'dpkg was interrupted' in update_result.msg"
-  rescue:
-    - name: Attempt to fix interrupted dpkg configuration
-      ansible.builtin.command:
-        cmd: "dpkg --configure -a"
-      register: dpkg_reconfigure
-      changed_when: dpkg_reconfigure.rc != 0
-      failed_when: dpkg_reconfigure.rc != 0
-    - name: Retry apt update and upgrade after dpkg fix
-      ansible.builtin.apt:
-        update_cache: yes
-      when: "'dpkg was interrupted' in update_result.msg and dpkg_reconfigure.rc == 0"
-    - name: Retry apt upgrade after dpkg fix
-      ansible.builtin.apt:
-        upgrade: dist
-      register: update_result
-      when: "'dpkg was interrupted' in update_result.msg and dpkg_reconfigure.rc == 0"
-      until: update_result is success
-      retries: 3
-      delay: 5
+- name: Ensure APT cache is updated
+  ansible.builtin.apt:
+    update_cache: yes
+  register: apt_cache_update
+  changed_when: apt_cache_update.cache_updated
+
+- name: Upgrade all packages
+  ansible.builtin.apt:
+    upgrade: dist
+  register: update_result
+  failed_when: "'dpkg was interrupted' in update_result.msg"
+
+- name: Attempt to fix interrupted dpkg configuration
+  ansible.builtin.command:
+    cmd: "dpkg --configure -a"
+  register: dpkg_reconfigure
+  changed_when: dpkg_reconfigure.rc != 0
+  failed_when: dpkg_reconfigure.rc != 0
+  when: "'dpkg was interrupted' in update_result.msg"
+
+- name: Retry apt update and upgrade after dpkg fix
+  ansible.builtin.apt:
+    update_cache: yes
+  when: "'dpkg was interrupted' in update_result.msg and dpkg_reconfigure.rc == 0"
+
+- name: Retry apt upgrade after dpkg fix
+  ansible.builtin.apt:
+    upgrade: dist
+  register: update_result
+  when: "'dpkg was interrupted' in update_result.msg and dpkg_reconfigure.rc == 0"
+  until: update_result is success
+  retries: 3
+  delay: 5
 
 - name: Install essential packages
   ansible.builtin.apt:
     name:
+      - auditd
       - ufw
       - fail2ban
       - htop
@@ -67,20 +72,40 @@
       - iptables
       - conntrack
       - logrotate
-    state: present
-    update_cache: yes
-
-- name: Install required system packages
-  apt:
-    name:
+      - unattended-upgrades
+      - suricata
+      - build-essential
+      - libpcap-dev
+      - libpcre3-dev
+      - libdumbnet-dev
+      - zlib1g-dev
+      - bison
+      - flex
+      - liblzma-dev
+      - openssl
+      - libssl-dev
+      - snort
       - python3-pip
       - python3-kubernetes
       - python3-psycopg2
     state: present
     update_cache: yes
 
-- name: Verify kubernetes module import works
-  command: /usr/bin/python3 -c "import kubernetes"
-  register: import_check
-  failed_when: import_check.rc != 0
-  changed_when: 
+- name: Download Tailscale GPG Key
+  ansible.builtin.uri:
+    dest: /usr/share/keyrings/tailscale-archive-keyring.gpg
+    url: https://pkgs.tailscale.com/stable/ubuntu/jammy.noarmor.gpg 
+
+- name: Add Tailscale repository
+  ansible.builtin.uri:
+    dest: /etc/apt/sources.list.d/tailscale.list
+    url: https://pkgs.tailscale.com/stable/ubuntu/jammy.tailscale-keyring.list
+
+- name: Update package cache
+  ansible.builtin.apt:
+    update_cache: yes
+
+- name: Install Tailscale
+  ansible.builtin.apt:
+    name: tailscale
+    state: present

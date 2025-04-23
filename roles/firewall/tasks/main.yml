@@ -1,16 +1,29 @@
 ---
-- name: Enable UFW (Uncomplicated Firewall)
-  ufw:
-    state: enabled
-    policy: deny
-    logging: on
-
-- name: Allow multiple ports from multiple networks
+- name: Allow specific ports from specific networks
   ufw:
     rule: allow
     from_ip: "{{ item.0 }}"
     to_port: "{{ item.1 }}"
     proto: tcp
-  loop: "{{ lookup('cartesian', [ ['192.168.0.0/24', '100.0.0.0/8', '127.0.0.1/32'], [22, 53, 6443, 10250, 10255, 32899, 59329] ]) }}"
+  loop: "{{ networks | product(ports) | list }}"
+  vars:
+    networks:
+      - '192.168.0.0/24'
+      - '100.0.0.0/8'
+      - '127.0.0.1/32'
+    ports:
+      - 22
+      - 53
+      - 6443
+      - 10250
+      - 10255
+      - 32899
+      - 59329
   loop_control:
-    label: "Allowing {{ item.1 }} from {{ item.0 }}"
+    label: "Allowing TCP port {{ item.1 }} from {{ item.0 }}"
+
+- name: Enable UFW (Uncomplicated Firewall)
+  ufw:
+    state: enabled
+    policy: deny
+    logging: on

@@ -1,11 +1,10 @@
----
 - name: Create SSH banner directory (if it doesn't exist)
   file:
     path: /etc/issue.d
     state: directory
     owner: root
     group: root
-    mode: '0755'
+    mode: "0755"
 
 - name: Create banner content file
   copy:
@@ -17,7 +16,7 @@
       #                                                             #
       #  Unauthorized access or use is strictly prohibited.         #
       #                                                             #
-      #  All activity is logged and may be monitored.              #
+      #  All activity is logged and may be monitored.               #
       #                                                             #
       ###############################################################
 
@@ -32,12 +31,12 @@
     dest: /etc/issue.net
     owner: root
     group: root
-    mode: '0644'
+    mode: "0644"
 
 - name: Configure SSH banner for security
   lineinfile:
     path: /etc/ssh/sshd_config
-    regexp: '^#Banner'
+    regexp: "^#?Banner"
     line: "Banner /etc/issue.net"
   notify:
     - Restart SSH
@@ -45,7 +44,14 @@
 - name: Set SSH port
   lineinfile:
     path: /etc/ssh/sshd_config
-    regexp: '^#?Port'
-    line: "Port 22"
+    regexp: "^#?Port"
+    line: "Port {{ ssh_port | default(22) }}"
   notify:
     - Restart SSH
+
+- name: Backup sshd_config before changes (if not already backed up)
+  copy:
+    src: /etc/ssh/sshd_config
+    dest: "/etc/ssh/sshd_config.backup_{{ ansible_date_time.iso8601 }}.bak"
+    remote_src: yes
+  when: ansible_date_time.iso8601 is defined

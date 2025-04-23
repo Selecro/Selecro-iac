@@ -14,6 +14,7 @@
           delaycompress
           missingok
           notifempty
+          create 0644 root root
       }
 
 - name: Configure logrotate for K3s logs
@@ -27,4 +28,5 @@
           compress
           missingok
           notifempty
+          create 0644 root root
       }

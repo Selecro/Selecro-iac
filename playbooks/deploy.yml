@@ -6,19 +6,19 @@
 #    - postgresql_database_main
 #    - postgresql_database_dev
 
-#- name: Configure Hashicorp Vault
-#  hosts: vault
-#  become: yes
-#  roles:
-#    - vault_main
-#    - vault_dev
+- name: Configure Hashicorp Vault
+  hosts: vault
+  become: yes
+  roles:
+    - vault_main
+    - vault_dev
 
-#- name: Deploy K3s Dashboard and Tailscale
-#  hosts: k3s-master
-#  become: yes
-#  roles:
-#    - k3s_dashboard
-#    - k3s_tailscale
+- name: Deploy K3s Dashboard and Tailscale
+  hosts: k3s-master
+  become: yes
+  roles:
+    - k3s_dashboard
+    - k3s_tailscale
 
 - name: Deploy Redis Database Cluster
   hosts: k3s-cluster

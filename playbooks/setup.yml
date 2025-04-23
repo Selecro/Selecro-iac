@@ -3,13 +3,13 @@
   hosts: k3s-cluster
   become: yes
   roles:
-    - basic_setup
-    - fail2ban
-    - ssh
-    - auditd
-    - logrotate_config
-    - unattended_upgrades
-    - ids
-    - firewall
-    - tailscale
-    - k3s
+    #- basic_setup
+    #- ssh
+    #- fail2ban
+    #- auditd
+    #- logrotate_config
+    #- unattended_upgrades
+    #- ids //error
+    #- tailscale
+    #- k3s
+    #- firewall
