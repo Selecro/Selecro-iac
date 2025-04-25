@@ -49,11 +49,14 @@
       }
 
       listener "tcp" {
-        address     = "0.0.0.0:8200"
-        tls-disable = 1
+        address = "0.0.0.0:8200"
+        tls_disable = 1
       }
 
       ui = true
+      api_addr = "http://0.0.0.0:8200"
+      cluster_addr = "http://0.0.0.0:8200"
+      disable_mlock = true
     owner: vault
     group: vault
     mode: '0640'
@@ -93,3 +96,29 @@
     port: '8200'
     proto: tcp
   tags: firewall
+
+- name: Initialize Vault for vault-main
+  shell: |
+    VAULT_ADDR="http://0.0.0.0:8200" vault operator init -key-shares=3 -key-threshold=2 -format=json
+  environment:
+    vault_addr: "http://0.0.0.0:8200"
+  register: vault_init_output
+  ignore_errors: yes
+
+- name: Display Vault vault-main Unseal Key (Keep these secret!)
+  debug:
+    msg: "Vault vault-main Unseal Keys: {{ vault_main_unseal_keys }}"
+  vars:
+    vault_main_unseal_keys: "{{ vault_main_init_output.stdout | from_json | json_query('unseal_keys_b64') }}"
+  ignore_errors: yes
+
+- name: Display Vault vault-main Root Token (Keep this secret!)
+  debug:
+    msg: "Vault vault-main Root Token: {{ lookup('vars', 'vault_main_root_token') }}"
+  ignore_errors: yes
+
+- name: Display Vault vault-main Unseal Key (Keep these secret!)
+  debug:
+    msg: "Vault vault-main Unseal Key {{ item.0 + 1 }}: {{ item.1 }}"
+  loop: "{{ vault_main_unseal_keys | indexed_list }}"
+  ignore_errors: yes

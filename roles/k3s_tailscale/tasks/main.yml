@@ -1,11 +1,4 @@
 ---
-- name: Ensure dashboard directory is on the Ansible control node
-  when: "'k3s-master' in group_names"
-  ansible.builtin.copy:
-    src: /home/kali/disk/files
-    dest: /tmp
-    remote_src: no
-
 - name: Create tailscale namespace
   kubernetes.core.k8s:
     state: present

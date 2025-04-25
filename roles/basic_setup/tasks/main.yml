@@ -90,6 +90,7 @@
       - python3-psycopg2
     state: present
     update_cache: yes
+  ignore_errors: yes
 
 - name: Download Tailscale GPG Key
   ansible.builtin.uri:

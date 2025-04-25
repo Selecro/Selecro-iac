@@ -1,4 +1,4 @@
-postgresql_cluster_name: selecro-main
-postgresql_version: 16
-postgresql_port: 5434
-postgres_password: YourSecurePassword
+postgresql_cluster_name_dev: selecro-dev
+postgresql_version: "16"
+postgresql_port_dev: 5434
+postgresql_password: YourSecurePassword

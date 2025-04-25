@@ -1,0 +1,57 @@
+---
+- name: Create Kafka namespace
+  kubernetes.core.k8s:
+    state: present
+    src: /tmp/files/kafka-main/namespace.yml
+
+- name: Deploy ZooKeeper StatefulSet
+  kubernetes.core.k8s:
+    state: present
+    src: /tmp/files/kafka-main/statefulset.yml
+
+- name: Deploy ZooKeeper Service
+  kubernetes.core.k8s:
+    state: present
+    src: /tmp/files/kafka-main/service.yml
+
+- name: Wait for ZooKeeper to be ready
+  kubernetes.core.k8s_info:
+    api_version: v1
+    kind: Pod
+    namespace: "{{ namespace }}"
+    label_selectors:
+      app: zookeeper
+  register: zookeeper_pods
+  retries: 10
+  delay: 10
+
+- name: Deploy Kafka StatefulSet
+  kubernetes.core.k8s:
+    src: templates/kafka-statefulset.yaml.j2
+    namespace: "{{ namespace }}"
+    state: present
+
+- name: Deploy Kafka Broker Service
+  kubernetes.core.k8s:
+    src: templates/kafka-service.yaml.j2
+    namespace: "{{ namespace }}"
+    state: present
+
+- name: Wait for Kafka Brokers to be ready
+  kubernetes.core.k8s_info:
+    api_version: v1
+    kind: Pod
+    namespace: "{{ namespace }}"
+    label_selectors:
+      app: kafka
+  register: kafka_pods
+  retries: 10
+  delay: 20
+
+- name: Get Kafka broker IPs (for testing)
+  kubernetes.core.k8s_info:
+    api_version: v1
+    kind: Service
+    namespace: "{{ namespace }}"
+    name: kafka-brokers
+  register: kafka_service_info
