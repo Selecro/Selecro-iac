@@ -1,4 +1,4 @@
---- 
+---
 - name: Create redis namespace
   kubernetes.core.k8s:
     state: present
