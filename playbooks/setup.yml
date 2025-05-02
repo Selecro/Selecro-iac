@@ -1,0 +1,15 @@
+---
+- name: Basic Setup for Ubuntu Servers
+  hosts: k3s-cluster
+  become: yes
+  roles:
+    - basic_setup
+    - ssh
+    - fail2ban
+    - auditd
+    - logrotate_config
+    - unattended_upgrades
+    #- ids //error
+    - tailscale
+    - k3s
+    - firewall

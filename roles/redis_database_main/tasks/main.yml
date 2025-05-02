@@ -1,0 +1,20 @@
+---
+- name: Create redis namespace
+  kubernetes.core.k8s:
+    state: present
+    src: /tmp/files/redis-main/namespace.yml
+
+- name: Install redis Service
+  kubernetes.core.k8s:
+    state: present
+    src: /tmp/files/redis-main/service.yml
+
+- name: Create redis PersistentVolumeClaim
+  kubernetes.core.k8s:
+    state: present
+    src: /tmp/files/redis-main/pvc.yml
+
+- name: Install redis Deployment
+  kubernetes.core.k8s:
+    state: present
+    src: /tmp/files/redis-main/deployment.yml

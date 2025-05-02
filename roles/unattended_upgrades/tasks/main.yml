@@ -1,0 +1,26 @@
+---
+- name: Ensure unattended-upgrades is enabled
+  service:
+    name: unattended-upgrades
+    state: started
+    enabled: yes
+
+- name: Configure automatic updates for security updates
+  copy:
+    dest: /etc/apt/apt.conf.d/20auto-upgrades
+    content: |
+      APT::Periodic::Update-Package-Lists "1";
+      APT::Periodic::Download-Upgradeable-Packages "1";
+      APT::Periodic::AutocleanInterval "7";
+      APT::Periodic::Unattended-Upgrade "1";
+
+- name: Configure unattended-upgrades to only install security updates
+  copy:
+    dest: /etc/apt/apt.conf.d/50unattended-upgrades
+    content: |
+      Unattended-Upgrade::Allowed-Origins {
+        "Ubuntu:$(lsb_release -c | awk '{print $2}')-security";
+        "Ubuntu:$(lsb_release -c | awk '{print $2}')-updates";
+      };
+      Unattended-Upgrade::Package-Blacklist {
+      };

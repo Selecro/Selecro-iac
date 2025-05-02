@@ -1,0 +1,29 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: redis-dev
+  namespace: redis-dev
+  labels:
+    app: redis-dev
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: redis-dev
+  template:
+    metadata:
+      labels:
+        app: redis-dev
+    spec:
+      containers:
+        - name: redis-dev
+          image: redis:alpine
+          ports:
+            - containerPort: 6379
+          volumeMounts:
+            - name: redis-dev-data
+              mountPath: /data-dev
+      volumes:
+        - name: redis-dev-data
+          persistentVolumeClaim:
+            claimName: redis-dev-pvc

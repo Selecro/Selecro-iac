@@ -1,0 +1,74 @@
+---    
+- name: Create dashboard namespace
+  kubernetes.core.k8s:
+    state: present
+    src: /tmp/files/dashboard/namespace.yml
+
+- name: Create dashboard Service Account
+  kubernetes.core.k8s:
+    state: present
+    src: /tmp/files/dashboard/service-account.yml
+
+- name: Install dashboard Service
+  kubernetes.core.k8s:
+    state: present
+    src: /tmp/files/dashboard/service.yml
+
+- name: Create Auth Secret
+  kubernetes.core.k8s:
+    state: present
+    src: /tmp/files/dashboard/secret.yml
+
+- name: Create ConfigMap for dashboard settings
+  kubernetes.core.k8s:
+    state: present
+    src: /tmp/files/dashboard/config-map.yml
+
+- name: Create Role for ServiceAccount with limited permissions
+  kubernetes.core.k8s:
+    state: present
+    src: /tmp/files/dashboard/role.yml
+
+- name: Create Role for ServiceAccount with limited permissions
+  kubernetes.core.k8s:
+    state: present
+    src: /tmp/files/dashboard/cluster-role.yml
+
+- name: Create Cluser Role Binding for Service Account with Role
+  kubernetes.core.k8s:
+    state: present
+    src: /tmp/files/dashboard/role-binding.yml
+
+- name: Create Cluster Role Binding for Service Account with Cluster Role
+  kubernetes.core.k8s:
+    state: present
+    src: /tmp/files/dashboard/cluster-role-binding.yml
+
+- name: Install dashboard Deployment
+  kubernetes.core.k8s:
+    state: present
+    src: /tmp/files/dashboard/deployment.yml
+
+- name: Create Ingress for dashboard
+  kubernetes.core.k8s:
+    state: present
+    src: /tmp/files/dashboard/ingress.yml
+
+- name: Create Service for metrics scraper
+  kubernetes.core.k8s:
+    state: present
+    src: /tmp/files/dashboard/scraper-service.yml
+
+- name: Install scraper Deployment
+  kubernetes.core.k8s:
+    state: present
+    src: /tmp/files/dashboard/scraper-deployment.yml
+
+
+- name: Get the admin token with expiration (1 year)
+  command: kubectl create token kubernetes-dashboard --duration 8760h -n kubernetes-dashboard
+  register: token_output
+
+- name: Show admin token
+  debug:
+    msg: "Admin Token: {{ token_output.stdout }}"

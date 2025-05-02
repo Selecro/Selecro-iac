@@ -1,0 +1,167 @@
+---
+- name: Create loopback4 backend namespace if it doesn't exist
+  kubernetes.core.k8s:
+    state: present
+    definition:
+      apiVersion: v1
+      kind: Namespace
+      metadata:
+        name: "{{ backend_name_dev }}-namespace"
+  kubeconfig: /etc/rancher/k3s/k3s.yaml
+
+- name: Create secrets for loopback4 backend
+  kubernetes.core.k8s:
+    state: present
+    definition:
+      apiVersion: v1
+      kind: Secret
+      metadata:
+        name: "{{ backend_name_dev }}-secrets"
+        namespace: "{{ backend_name_dev }}-namespace"
+      type: Opaque
+      data:
+        EMAIL_HOST: "{{ email_host | b64encode }}"
+        EMAIL_PASSWORD: "{{ email_password | b64encode }}"
+        EMAIL_USER: "{{ email_user | b64encode }}"
+        IMGUR_CLIENT_ID: "{{ imgur_client_id | b64encode }}"
+        INSTRUCTION_KEY_PREMIUM: "{{ instruction_key_premium | b64encode }}"
+        INSTRUCTION_KEY_PREMIUM_PERMISSIONS: "{{ instruction_key_premium_permissions | b64encode }}"
+        JWT_SECRET: "{{ jwt_secret | b64encode }}"
+        JWT_SECRET_EMAIL: "{{ jwt_secret_email | b64encode }}"
+        JWT_SECRET_SIGNUP: "{{ jwt_secret_signup | b64encode }}"
+  kubeconfig: /etc/rancher/k3s/k3s.yaml
+
+- name: Apply loopback4 backend deployment
+  kubernetes.core.k8s:
+    state: present
+    definition:
+      apiVersion: apps/v1
+      kind: Deployment
+      metadata:
+        name: "{{ backend_name_dev }}-deployment"
+        namespace: "{{ backend_name_dev }}-namespace"
+        labels:
+          app: "{{ backend_name_dev }}-container"
+          version: "v1.0.0"
+      spec:
+        replicas: 1
+        selector:
+          matchLabels:
+            app: "{{ backend_name_dev }}-container"
+        strategy:
+          type: RollingUpdate
+          rollingUpdate:
+            maxSurge: 1
+            maxUnavailable: 0
+        minReadySeconds: 10
+        revisionHistoryLimit: 3
+        template:
+          metadata:
+            labels:
+              app: "{{ backend_name_dev }}-container"
+              version: "v1.0.0"
+            annotations:
+              prometheus.io/scrape: "true"
+              prometheus.io/port: "3000"
+          spec:
+            affinity:
+              podAntiAffinity:
+                requiredDuringSchedulingIgnoredDuringExecution:
+                  - labelSelector:
+                      matchLabels:
+                        app: "{{ backend_name_dev }}-container"
+                    topologyKey: "kubernetes.io/hostname"
+            nodeSelector:
+              node-role.kubernetes.io/worker: ""
+            tolerations:
+              - key: "node.kubernetes.io/not-ready"
+                operator: "Exists"
+                effect: "NoExecute"
+              - key: "node.kubernetes.io/unreachable"
+                operator: "Exists"
+                effect: "NoExecute"
+            containers:
+              - name: "{{ backend_name_dev }}-container"
+                image: "{{ image_registry }}/{{ backend_name_dev }}:lastest"
+                ports:
+                  - containerPort: 3000
+                    name: http
+                    protocol: TCP
+                envFrom:
+                  - secretRef:
+                      name: "{{ backend_name_dev }}-secrets"
+                resources:
+                  requests:
+                    cpu: "500m"
+                    memory: "1Gi"
+                  limits:
+                    cpu: "1"
+                    memory: "2Gi"
+                livenessProbe:
+                  httpGet:
+                    path: /health/ping
+                    port: http
+                  initialDelaySeconds: 30
+                  periodSeconds: 10
+                  timeoutSeconds: 5
+                  failureThreshold: 3
+                readinessProbe:
+                  httpGet:
+                    path: /health/ping
+                    port: http
+                  initialDelaySeconds: 15
+                  periodSeconds: 5
+                  timeoutSeconds: 3
+                  failureThreshold: 3
+                startupProbe:
+                  httpGet:
+                    path: /health/ping
+                    port: http
+                  initialDelaySeconds: 5
+                  periodSeconds: 5
+                  timeoutSeconds: 3
+                  failureThreshold: 6
+                volumeMounts:
+                  - name: "{{ backend_name_dev }}-data"
+                    mountPath: "/{{ backend_name_dev }}/data"
+            volumes:
+              - name: "{{ backend_name_dev }}-data"
+                emptyDir: {}
+            terminationGracePeriodSeconds: 30
+        replicas: 2
+        minReadySeconds: 10
+        revisionHistoryLimit: 3
+        strategy:
+          type: RollingUpdate
+          rollingUpdate:
+            maxSurge: 1
+            maxUnavailable: 0
+        autoscaling:
+          enabled: true
+          minReplicas: 1
+          maxReplicas: 5
+          targetCPUUtilizationPercentage: 70
+          targetMemoryUtilizationPercentage: 80
+  kubeconfig: /etc/rancher/k3s/k3s.yaml
+
+- name: Apply loopback4 backend service
+  kubernetes.core.k8s:
+    state: present
+    definition:
+      apiVersion: v1
+      kind: Service
+      metadata:
+        name: "{{ backend_name_dev }}-service"
+        namespace: "{{ backend_name_dev }}-namespace"
+        labels:
+          app: "{{ backend_name_dev }}-service"
+      spec:
+        selector:
+          app: "{{ backend_name_dev }}-container"
+        ports:
+          - protocol: TCP
+            port: 80
+            targetPort: 3000
+        type: ClusterIP
+        sessionAffinity: None
+  kubeconfig: /etc/rancher/k3s/k3s.yaml

@@ -1,0 +1,58 @@
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: kafka
+  namespace: kafka-main
+spec:
+  serviceName: kafka
+  replicas: "{{ kafka_replicas }}"
+  selector:
+    matchLabels:
+      app: kafka
+  template:
+    metadata:
+      labels:
+        app: kafka
+    spec:
+      affinity:
+        podAntiAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+            - labelSelector:
+                matchLabels:
+                  app: kafka
+              topologyKey: "kubernetes.io/hostname"
+      containers:
+        - name: kafka
+          image: confluentinc/cp-kafka:7.5.0
+          ports:
+            - containerPort: 9092
+              name: tcp
+          volumeMounts:
+            - name: data
+              mountPath: /var/lib/kafka/data
+          env:
+            - name: KAFKA_BROKER_ID
+              value: "{{ '{{' }} ordinal {{ '}}' }}"
+            - name: KAFKA_ZOOKEEPER_CONNECT
+              value: "zookeeper.{{ namespace }}.svc.cluster.local:2181"
+            - name: KAFKA_ADVERTISED_LISTENERS
+              value: "PLAINTEXT://{{ kafka_advertised_listeners_main | replace('broker-' + inventory_hostname + '.kafka-main.svc.cluster.local', inventory_hostname) }}"
+            - name: KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR
+              value: "1"
+            - name: KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR
+              value: "1"
+            - name: KAFKA_TRANSACTION_STATE_LOG_MIN_ISR
+              value: "1"
+      volumes:
+        - name: data
+          persistentVolumeClaim:
+            claimName: kafka-data-{{ "{{" }} ordinal {{ "}}" }}
+  volumeClaimTemplates:
+    - metadata:
+        name: data
+      spec:
+        accessModes: [ "ReadWriteOnce" ]
+        storageClassName: "{{ storage_class }}"
+        resources:
+          requests:
+            storage: "{{ kafka_storage_size }}"

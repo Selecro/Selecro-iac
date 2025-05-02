@@ -1,0 +1,63 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: dashboard
+  namespace: kubernetes-dashboard
+  labels:
+    app: dashboard
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      k8s-app: dashboard
+  template:
+    metadata:
+      labels:
+        k8s-app: dashboard
+    spec:
+      serviceAccountName: kubernetes-dashboard
+      #nodeSelector:
+      #  kubernetes.io/hostname: k3s-master
+      containers:
+        - name: dashboard
+          image: kubernetesui/dashboard:v2.7.0
+          ports:
+            - containerPort: 8443
+              protocol: TCP
+          volumeMounts:
+            - name: kubernetes-dashboard-certs
+              mountPath: /certs
+            - mountPath: /tmp
+              name: tmp-volume
+          resources:
+            requests:
+              cpu: 100m
+              memory: 128Mi
+            limits:
+              cpu: 200m
+              memory: 256Mi
+          livenessProbe:
+            httpGet:
+              scheme: HTTPS
+              path: /
+              port: 8443
+            initialDelaySeconds: 10
+            periodSeconds: 10
+            failureThreshold: 3
+          readinessProbe:
+            httpGet:
+              scheme: HTTPS
+              path: /
+              port: 8443
+            initialDelaySeconds: 10
+            periodSeconds: 10
+            failureThreshold: 3
+          args:
+            - --auto-generate-certificates
+            - --namespace=kubernetes-dashboard
+      volumes:
+        - name: kubernetes-dashboard-certs
+          secret:
+            secretName: kubernetes-dashboard-certs
+        - name: tmp-volume
+          emptyDir: {}

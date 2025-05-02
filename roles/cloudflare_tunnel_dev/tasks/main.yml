@@ -1,0 +1,58 @@
+---
+- name: Install cloudflared package
+  ansible.builtin.package:
+    name: cloudflared
+    state: present
+  become: yes
+
+- name: Create cloudflare tunnel
+  community.general.cloudflare_tunnel:
+    name: "{{ cloudflare_tunnel_name_dev }}"
+    account_id: "{{ cloudflare_account_id }}"
+    api_token: "{{ cloudflare_api_token }}"
+  register: cloudflare_tunnel_result
+
+- name: Create DNS record for the tunnel
+  community.general.cloudflare_dns_record:
+    zone_name: "{{ cloudflare_dodev }}"
+    name: "{{ cloudflare_dns_record_name_dev }}"
+    value: "{{ cloudflare_tunnel_result.cname }}"
+    type: CNAME
+    proxied: yes
+    ttl: "{{ cloudflare_dns_ttl | default(300) }}"
+    account_id: "{{ cloudflare_account_id }}"
+    api_token: "{{ cloudflare_api_token }}"
+  when: cloudflare_tunnel_result.cname is defined
+
+- name: Get HAProxy Service Information
+  kubernetes.core.k8s_info:
+    api_version: v1
+    kind: Service
+    name: haproxy-loadbalancer-service
+    namespace: "{{ haproxy_namespace_dev }}"
+  register: haproxy_service_info
+
+- name: Configure cloudflared to route traffic to HAProxy
+  ansible.builtin.copy:
+    dest: "/etc/cloudflared/config.yml"
+    content: |
+      tunnel: {{ cloudflare_tunnel_result.id }}
+      credentials-file: /etc/cloudflared/{{ cloudflare_tunnel_result.id }}.json
+
+      ingress:
+        - hostname: "{{ cloudflare_dns_record_name_dev }}.{{ cloudflare_domain }}"
+          service: "http://{{ haproxy_service_info.resources[0].status.loadBalancer.ingress[0].ip | default(haproxy_service_info.resources[0].spec.clusterIP) }}:80"
+        - service: http_status:404
+
+- name: Enable and start cloudflared service
+  ansible.builtin.systemd:
+    name: cloudflared
+    enabled: yes
+    state: started
+  become: yes
+
+- name: Ensure cloudflared service is running
+  ansible.builtin.systemd:
+    name: cloudflared
+    state: running
+  become: yes

@@ -1,0 +1,62 @@
+---
+#- name: Configure PostgreSQL Database Cluster
+#  hosts: database
+#  become: yes
+#  roles:
+#    - postgresql_database_main
+#    - postgresql_database_dev
+
+#- name: Configure Hashicorp Vault
+#  hosts: vault
+#  become: yes
+#  roles:
+#    - vault_main
+#    - vault_dev
+
+#- name: Deploy K3s Dashboard and Tailscale
+#  hosts: k3s-master
+#  become: yes
+#  roles:
+#    - k3s_dashboard
+#    - k3s_tailscale
+
+#- name: Deploy Redis Database Cluster
+#  hosts: k3s-master
+#  become: yes
+#  roles:
+#    - redis_database_main
+#    - redis_database_dev
+
+- name: Deploy Kafka Cluster
+  hosts: k3s-master
+  become: yes
+  roles:
+    - kafka_main
+    #- kafka_dev
+
+#- name: Deploy Cloudflare Tunnel Cluster
+#  hosts: load_balancers
+#  become: yes
+#  roles:
+#    - cloudflare_tunnel_main
+#    - cloudflare_tunnel_dev
+
+#- name: Deploy Cloudflare Tunnel Vault
+#  hosts: load_balancers
+#  become: yes
+#  roles:
+#    - cloudflare_tunnel_main
+#    - cloudflare_tunnel_dev
+
+#- name: Deploy loopback4 backend
+#  hosts: k3s-workers
+#  become: yes
+#  roles:
+#    - backend_main
+#    - backend_dev
+
+#- name: Install Monitoring Stack
+#  hosts: master
+#  become: yes
+#  roles:
+#  - monitoring

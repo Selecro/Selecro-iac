@@ -1,0 +1,175 @@
+---
+- name: Create HAProxy LoadBalancer Namespace
+  kubernetes.core.k8s:
+    state: present
+    definition:
+      apiVersion: v1
+      kind: Namespace
+      metadata:
+        name: "{{ haproxy_namespace_dev }}-namespace"
+  kubeconfig: /etc/rancher/k3s/k3s.yaml
+
+- name: Deploy HAProxy LoadBalancer
+  kubernetes.core.k8s:
+    state: present
+    definition:
+      apiVersion: apps/v1
+      kind: Deployment
+      metadata:
+        name: haproxy-loadbalancer
+        namespace: "{{ haproxy_namespace_dev }}-namespace"
+        labels:
+          app: haproxy-loadbalancer
+      spec:
+        replicas: 1
+        selector:
+          matchLabels:
+            app: haproxy-loadbalancer
+        strategy:
+          type: RollingUpdate
+          rollingUpdate:
+            maxSurge: 1
+            maxUnavailable: 0
+        template:
+          metadata:
+            labels:
+              app: haproxy-loadbalancer
+          spec:
+            securityContext:
+              runAsUser: 1001
+              runAsGroup: 1001
+              fsGroup: 1001
+            containers:
+              - name: haproxy
+                image: haproxy:latest
+                ports:
+                  - containerPort: 80
+                    name: http
+                    protocol: TCP
+                volumeMounts:
+                  - name: haproxy-config
+                    mountPath: /usr/local/etc/haproxy/haproxy.cfg
+                    subPath: haproxy.cfg
+                readinessProbe:
+                  httpGet:
+                    path: /
+                    port: http
+                livenessProbe:
+                  httpGet:
+                    path: /
+                    port: http
+                resources:
+                  requests:
+                    cpu: "100m"
+                    memory: "256Mi"
+                  limits:
+                    cpu: "500m"
+                    memory: "512Mi"
+              - name: config-updater
+                image: curlimages/curl
+                command:
+                  - "/bin/sh"
+                args:
+                  - "-c"
+                  - |
+                    while true; do
+                      sleep 10;
+                      BACKEND_SERVICE_NAME="{{ backend_name_dev }}-service";
+                      BACKEND_NAMESPACE="{{ backend_name_dev }}-namespace";
+                      HAPROXY_CONFIG_FILE="/haproxy-config-volume/haproxy.cfg";
+                      HAPROXY_TEMPLATE_FILE="/tmp/haproxy.cfg.template";
+
+                      BACKEND_IPS=$(kubectl get endpoints -n "$BACKEND_NAMESPACE" "$BACKEND_SERVICE_NAME" -o jsonpath='{.subsets[*].addresses[*].ip}' --kubeconfig=/etc/rancher/k3s/k3s.yaml | tr ' ' '\n' | grep -v '^$');
+
+                      if [ -n "$BACKEND_IPS" ]; then
+                        sed -e "s/# BACKEND_SERVERS_PLACEHOLDER/$(printf 'server backend%d %s:3000 check\\n' $(seq 1 $(wc -l <<< "$BACKEND_IPS")) $BACKEND_IPS)/" "$HAPROXY_TEMPLATE_FILE" > "$HAPROXY_CONFIG_FILE";
+                        echo "Updated HAProxy config with backend IPs:\n$BACKEND_IPS";
+                        # Graceful reload using HAProxy's stats socket (requires enabling in config)
+                        # kubectl exec -n "{{ haproxy_namespace_dev }}" deployment/haproxy-loadbalancer -c haproxy -- haproxy -f /usr/local/etc/haproxy/haproxy.cfg -p /var/run/haproxy.pid -sf $(cat /var/run/haproxy.pid)
+                        # For simplicity, using a rollout restart
+                        kubectl rollout restart deployment/haproxy-loadbalancer -n "{{ haproxy_namespace_dev }}" --kubeconfig=/etc/rancher/k3s/k3s.yaml;
+                      else
+                        echo "No backend IPs found.";
+                      fi
+                    done
+                securityContext:
+                  allowPrivilegeEscalation: false
+                  capabilities:
+                    drop: ["all"]
+                  readOnlyRootFilesystem: true
+                volumeMounts:
+                  - name: haproxy-config-volume
+                    mountPath: /haproxy-config-volume
+                  - name: haproxy-config
+                    mountPath: /tmp
+            volumes:
+              - name: haproxy-config
+                configMap:
+                  name: haproxy-config
+              - name: haproxy-config-volume
+                emptyDir: {}
+
+- name: Create HAProxy Service
+  kubernetes.core.k8s:
+    state: present
+    definition:
+      apiVersion: v1
+      kind: Service
+      metadata:
+        name: haproxy-loadbalancer-service
+        namespace: "{{ haproxy_namespace_dev }}"
+        labels:
+          app: haproxy-loadbalancer
+      spec:
+        selector:
+          app: haproxy-loadbalancer
+        ports:
+          - protocol: TCP
+            port: 80
+            targetPort: 80
+        type: LoadBalancer
+  kubeconfig: /etc/rancher/k3s/k3s.yaml
+
+- name: Create HAProxy ConfigMap
+  kubernetes.core.k8s:
+    state: present
+    definition:
+      apiVersion: v1
+      kind: ConfigMap
+      metadata:
+        name: haproxy-config
+        namespace: "{{ haproxy_namespace_dev }}"
+      data:
+        haproxy.cfg: |
+          global
+              log         127.0.0.1 local0
+              chroot      /var/lib/haproxy
+              pidfile     /var/run/haproxy.pid
+              maxconn     10000
+              user        haproxy
+              group       haproxy
+              daemon
+
+          defaults
+              log         global
+              mode        http
+              option      httplog
+              option      dontlognull
+              timeout connect 5000ms
+              timeout client  50000ms
+              timeout server  50000ms
+              errorfile 400 /etc/haproxy/errors/400.http
+              errorfile 403 /etc/haproxy/errors/403.http
+              errorfile 408 /etc/haproxy/errors/408.http
+              errorfile 500 /etc/haproxy/errors/500.http
+              errorfile 502 /etc/haproxy/errors/502.http
+              errorfile 503 /etc/haproxy/errors/503.http
+              errorfile 504 /etc/haproxy/errors/504.http
+
+          frontend http-in
+              bind *:80
+              default_backend backend-servers
+
+          backend backend-servers
+              balance roundrobin
+              # BACKEND_SERVERS_PLACEHOLDER

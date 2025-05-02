@@ -1,22 +1,4 @@
-- name: Download Tailscale GPG Key
-  ansible.builtin.uri:
-    dest: /usr/share/keyrings/tailscale-archive-keyring.gpg
-    url: https://pkgs.tailscale.com/stable/ubuntu/jammy.noarmor.gpg 
-
-- name: Add Tailscale repository
-  ansible.builtin.uri:
-    dest: /etc/apt/sources.list.d/tailscale.list
-    url: https://pkgs.tailscale.com/stable/ubuntu/jammy.tailscale-keyring.list
-
-- name: Update package cache
-  ansible.builtin.apt:
-    update_cache: yes
-
-- name: Install Tailscale
-  ansible.builtin.apt:
-    name: tailscale
-    state: present
-
+---
 - name: Start Tailscale service
   service:
     name: tailscaled
@@ -27,7 +9,8 @@
   command: tailscale up --authkey={{ tailscale_auth_key }}
   environment:
     TS_KEY: "{{ tailscale_auth_key }}"
-  become: true
+  register: tailscale_up_result
+  failed_when: "'Error' in tailscale_up_result.stderr"
 
 - name: Check Tailscale status
   command: tailscale status
@@ -37,3 +20,12 @@
 - name: Show Tailscale status
   debug:
     msg: "Tailscale status: {{ tailscale_status.stdout }}"
+
+- name: Get Tailscale IP
+  shell: tailscale ip -4
+  register: tailscale_ip
+  changed_when: false
+
+- name: Display Tailscale IP
+  debug:
+    msg: "Tailscale IP of this node is {{ tailscale_ip.stdout }}"

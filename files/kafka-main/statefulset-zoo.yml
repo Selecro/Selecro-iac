@@ -1,0 +1,59 @@
+- name: Deploy ZooKeeper StatefulSet (Direct Definition)
+  kubernetes.core.k8s:
+    state: present
+    namespace: kafka-main
+    definition:
+      apiVersion: apps/v1
+      kind: StatefulSet
+      metadata:
+        name: zookeeper
+        namespace: kafka-main
+      spec:
+        serviceName: zookeeper
+        replicas: "{{ zookeeper_replicas | int }}"
+        selector:
+          matchLabels:
+            app: zookeeper
+        template:
+          metadata:
+            labels:
+              app: zookeeper
+          spec:
+            affinity:
+              podAntiAffinity:
+                requiredDuringSchedulingIgnoredDuringExecution:
+                  - labelSelector:
+                      matchLabels:
+                        app: zookeeper
+                    topologyKey: "kubernetes.io/hostname"
+            containers:
+              - name: zookeeper
+                image: zookeeper:3.7
+                ports:
+                  - containerPort: 2181
+                    name: client
+                  - containerPort: 2888
+                    name: peer
+                  - containerPort: 3888
+                    name: leader-election
+                volumeMounts:
+                  - name: data
+                    mountPath: /data
+                env:
+                  - name: MY_ID
+                    value: "{{ '{{' }} ordinal + 1 {{ '}}' }}"
+                  - name: SERVERS
+                    value: "{{ range(zookeeper_replicas)|map('string')|map('concat', 'zookeeper-', '-server.')|join(namespace + '.svc.cluster.local:2888:3888,') }}{{ namespace }}.svc.cluster.local:2888:3888"
+            volumes:
+              - name: data
+                persistentVolumeClaim:
+                  claimName: zookeeper-data-{{ "{{" }} ordinal {{ "}}" }}
+        volumeClaimTemplates:
+          - metadata:
+              name: data
+            spec:
+              accessModes: [ "ReadWriteOnce" ]
+              storageClassName: "{{ storage_class }}"
+              resources:
+                requests:
+                  storage: "{{ zookeeper_storage_size }}"

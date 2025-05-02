@@ -1,13 +1,79 @@
-- name: Install K3s on Master
-  shell: curl -sfL https://get.k3s.io | sh -
-  args:
-    executable: /bin/bash
+---
+- name: Install K3s master
+  when: "'k3s-master' in group_names"
+  shell: curl -sfL https://get.k3s.io | sh -s -- server --write-kubeconfig-mode 644
 
-- name: Get K3s Node Token
-  shell: cat /var/lib/rancher/k3s/server/node-token
-  register: k3s_token
+- name: Create .kube directory for user
+  when: "'k3s-master' in group_names"
+  file:
+    path: ~/.kube
+    state: directory
+    mode: "0755"
 
-- name: Save K3s Node Token
+- name: Copy kubeconfig to user's home directory
+  when: "'k3s-master' in group_names"
   copy:
-    content: "{{ k3s_token.stdout }}"
-    dest: /tmp/k3s_token
+    src: /etc/rancher/k3s/k3s.yaml
+    dest: ~/.kube/config
+    remote_src: yes
+    owner: "{{ ansible_user }}"
+    group: "{{ ansible_user }}"
+    mode: "0644"
+
+- name: Change kubeconfig server address to the master's private IP
+  when: "'k3s-master' in group_names"
+  replace:
+    path: ~/.kube/config
+    regexp: "server: https://127.0.0.1:6443"
+    replace: "server: https://{{ ansible_host }}:6443"
+
+- name: Enable and start K3s service on master
+  when: "'k3s-master' in group_names"
+  systemd:
+    name: k3s
+    enabled: true
+    state: started
+
+- name: Discover K3s server token
+  when: "'k3s-workers' in group_names"
+  slurp:
+    src: /var/lib/rancher/k3s/server/node-token
+  delegate_to: "{{ groups['k3s-master'][0] }}"
+  register: k3s_token_raw
+
+- name: Set K3s server token fact
+  when: "'k3s-workers' in group_names"
+  set_fact:
+    k3s_token: "{{ k3s_token_raw['content'] | b64decode | trim }}"
+
+- name: Install K3s agent
+  when: "'k3s-workers' in group_names"
+  shell: curl -sfL https://get.k3s.io | sh -s -- agent --server https://{{ hostvars[groups['k3s-master'][0]]['ansible_host'] }}:6443 --token {{ k3s_token }}
+
+- name: Enable and start K3s agent service on workers
+  when: "'k3s-workers' in group_names"
+  systemd:
+    name: k3s-agent
+    enabled: true
+    state: started
+
+- name: Get K3s nodes
+  when: "'k3s-master' in group_names"
+  command: kubectl get nodes
+  register: k3s_nodes
+
+- name: Display K3s nodes
+  when: "'k3s-master' in group_names"
+  debug:
+    var: k3s_nodes.stdout_lines
+
+- name: Set default namespace
+  when: "'k3s-master' in group_names"
+  command: "kubectl config set-context --current --namespace=kube-system"
+
+- name: Ensure dashboard directory is on the Ansible control node
+  when: "'k3s-master' in group_names"
+  ansible.builtin.copy:
+    src: /home/kali/disk/files
+    dest: /tmp
+    remote_src: no

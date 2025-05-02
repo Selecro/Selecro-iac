@@ -1,0 +1,12 @@
+---
+- name: Ensure Fail2Ban service is started and enabled
+  service:
+    name: fail2ban
+    state: started
+    enabled: yes
+
+- name: Check Fail2Ban service status
+  command: systemctl status fail2ban
+  register: fail2ban_status
+  failed_when: "'active (running)' not in fail2ban_status.stdout"
+  changed_when: false

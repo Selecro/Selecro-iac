@@ -1,0 +1,16 @@
+[k3s-master]
+k3s-master ansible_host=192.168.0.28
+
+[k3s-workers]
+k3s-worker1 ansible_host=192.168.0.29
+k3s-worker2 ansible_host=192.168.0.30
+
+[k3s-cluster:children]
+k3s-master
+k3s-workers
+
+[database]
+database ansible_host=192.168.0.28
+
+[vault]
+vault ansible_host=192.168.0.28

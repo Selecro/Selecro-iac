@@ -1,0 +1,57 @@
+- name: Create SSH banner directory (if it doesn't exist)
+  file:
+    path: /etc/issue.d
+    state: directory
+    owner: root
+    group: root
+    mode: "0755"
+
+- name: Create banner content file
+  copy:
+    dest: /etc/issue.d/banner.txt
+    content: |
+      ###############################################################
+      #                                                             #
+      #        Welcome to Your Secure K3s Cluster Node!             #
+      #                                                             #
+      #  Unauthorized access or use is strictly prohibited.         #
+      #                                                             #
+      #  All activity is logged and may be monitored.               #
+      #                                                             #
+      ###############################################################
+
+      System Information:
+      Hostname: {{ ansible_hostname }}
+      OS: {{ ansible_distribution }} {{ ansible_distribution_version }}
+      Kernel: {{ ansible_kernel }}
+
+- name: Assemble banner content into /etc/issue.net
+  assemble:
+    src: /etc/issue.d
+    dest: /etc/issue.net
+    owner: root
+    group: root
+    mode: "0644"
+
+- name: Configure SSH banner for security
+  lineinfile:
+    path: /etc/ssh/sshd_config
+    regexp: "^#?Banner"
+    line: "Banner /etc/issue.net"
+  notify:
+    - Restart SSH
+
+- name: Set SSH port
+  lineinfile:
+    path: /etc/ssh/sshd_config
+    regexp: "^#?Port"
+    line: "Port {{ ssh_port | default(22) }}"
+  notify:
+    - Restart SSH
+
+- name: Backup sshd_config before changes (if not already backed up)
+  copy:
+    src: /etc/ssh/sshd_config
+    dest: "/etc/ssh/sshd_config.backup_{{ ansible_date_time.iso8601 }}.bak"
+    remote_src: yes
+  when: ansible_date_time.iso8601 is defined

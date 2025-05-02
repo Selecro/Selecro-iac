@@ -1,0 +1,124 @@
+---
+- name: Install dependencies
+  apt:
+    name: [apt-transport-https, ca-certificates, curl, gnupg, lsb-release, openssl]
+    state: present
+    update_cache: yes
+
+- name: Import HashiCorp GPG key
+  apt_key:
+    url: https://apt.releases.hashicorp.com/gpg
+    state: present
+
+- name: Add HashiCorp APT repository
+  apt_repository:
+    repo: "deb [arch=amd64] https://apt.releases.hashicorp.com {{ ansible_distribution_release | lower }} main"
+    state: present
+    update_cache: yes
+
+- name: Install Vault
+  apt:
+    name: vault
+    state: latest
+    update_cache: yes
+
+- name: Create vault user and directories
+  block:
+    - name: Create vault user
+      user:
+        name: vault
+        shell: /usr/sbin/nologin
+
+    - name: Create directories
+      file:
+        path: "{{ item }}"
+        state: directory
+        owner: vault
+        group: vault
+        mode: '0750'
+      loop:
+        - /etc/vault
+        - /opt/vault/data-main
+
+- name: Create Vault configuration file
+  copy:
+    dest: /etc/vault/config-main.hcl
+    content: |
+      storage "file" {
+        path = "/opt/vault/data-main"
+      }
+
+      listener "tcp" {
+        address = "0.0.0.0:8200"
+        tls_disable = 1
+      }
+
+      ui = true
+      api_addr = "http://0.0.0.0:8200"
+      cluster_addr = "http://0.0.0.0:8200"
+      disable_mlock = true
+    owner: vault
+    group: vault
+    mode: '0640'
+  notify: Restart Vault
+
+- name: Create systemd service for Vault
+  copy:
+    dest: /etc/systemd/system/vault-main.service
+    content: |
+      [Unit]
+      Description=Vault server (main)
+      Requires=network-online.target
+      After=network-online.target
+
+      [Service]
+      User=vault
+      Group=vault
+      ExecStart=/usr/bin/vault server -config=/etc/vault/config-main.hcl
+      ExecReload=/bin/kill -HUP $MAINPID
+      KillMode=process
+      Restart=on-failure
+      LimitNOFILE=65536
+
+      [Install]
+      WantedBy=multi-user.target
+  notify: Restart Vault
+
+- name: Enable and start Vault service
+  systemd:
+    name: vault-main
+    enabled: yes
+    state: started
+
+- name: Enable UFW and allow Vault port
+  ufw:
+    rule: allow
+    port: '8200'
+    proto: tcp
+  tags: firewall
+
+- name: Initialize Vault for vault-main
+  shell: |
+    VAULT_ADDR="http://0.0.0.0:8200" vault operator init -key-shares=3 -key-threshold=2 -format=json
+  environment:
+    vault_addr: "http://0.0.0.0:8200"
+  register: vault_init_output
+  ignore_errors: yes
+
+- name: Display Vault vault-main Unseal Key (Keep these secret!)
+  debug:
+    msg: "Vault vault-main Unseal Keys: {{ vault_main_unseal_keys }}"
+  vars:
+    vault_main_unseal_keys: "{{ vault_main_init_output.stdout | from_json | json_query('unseal_keys_b64') }}"
+  ignore_errors: yes
+
+- name: Display Vault vault-main Root Token (Keep this secret!)
+  debug:
+    msg: "Vault vault-main Root Token: {{ lookup('vars', 'vault_main_root_token') }}"
+  ignore_errors: yes
+
+- name: Display Vault vault-main Unseal Key (Keep these secret!)
+  debug:
+    msg: "Vault vault-main Unseal Key {{ item.0 + 1 }}: {{ item.1 }}"
+  loop: "{{ vault_main_unseal_keys | indexed_list }}"
+  ignore_errors: yes
