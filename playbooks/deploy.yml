@@ -28,13 +28,20 @@
 #    - redis_database_dev
 
 - name: Deploy Kafka Cluster
-  hosts: k3s-cluster
+  hosts: k3s-master
   become: yes
   roles:
     - kafka_main
-    - kafka_dev
+    #- kafka_dev
 
-#- name: Deploy Cloudflare Tunnel
+#- name: Deploy Cloudflare Tunnel Cluster
+#  hosts: load_balancers
+#  become: yes
+#  roles:
+#    - cloudflare_tunnel_main
+#    - cloudflare_tunnel_dev
+
+#- name: Deploy Cloudflare Tunnel Vault
 #  hosts: load_balancers
 #  become: yes
 #  roles:

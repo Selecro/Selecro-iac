@@ -2,7 +2,7 @@ apiVersion: apps/v1
 kind: StatefulSet
 metadata:
   name: kafka
-  namespace: "{{ namespace }}"
+  namespace: kafka-main
 spec:
   serviceName: kafka
   replicas: "{{ kafka_replicas }}"
@@ -23,7 +23,7 @@ spec:
               topologyKey: "kubernetes.io/hostname"
       containers:
         - name: kafka
-          image: confluentinc/cp-kafka:7.5.0 # Use a specific Kafka image
+          image: confluentinc/cp-kafka:7.5.0
           ports:
             - containerPort: 9092
               name: tcp
@@ -32,17 +32,17 @@ spec:
               mountPath: /var/lib/kafka/data
           env:
             - name: KAFKA_BROKER_ID
-              value: "{{ "{{" }} ordinal {{ "}}" }}"
+              value: "{{ '{{' }} ordinal {{ '}}' }}"
             - name: KAFKA_ZOOKEEPER_CONNECT
               value: "zookeeper.{{ namespace }}.svc.cluster.local:2181"
             - name: KAFKA_ADVERTISED_LISTENERS
-              value: "PLAINTEXT://{{ kafka_advertised_listeners | replace('broker-' + inventory_hostname + '.' + namespace + '.svc.cluster.local', inventory_hostname) }}"
+              value: "PLAINTEXT://{{ kafka_advertised_listeners_main | replace('broker-' + inventory_hostname + '.kafka-main.svc.cluster.local', inventory_hostname) }}"
             - name: KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR
-              value: "1" # Adjust for production
+              value: "1"
             - name: KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR
-              value: "1" # Adjust for production
+              value: "1"
             - name: KAFKA_TRANSACTION_STATE_LOG_MIN_ISR
-              value: "1" # Adjust for production
+              value: "1"
       volumes:
         - name: data
           persistentVolumeClaim:
